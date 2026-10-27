@@ -145,6 +145,12 @@ browser() {
   return 0
 }
 
+# apps-missing: the modes with no browser chosen yet, one per line.
+apps_missing() {
+  local m
+  for m in work personal; do [[ -n $(browser_exe "$m") ]] || echo "$m"; done
+}
+
 # webapp [--mode=MODE] [--name=NAME] [--focus=TEXT] URL [FLAG…]: a web-app window of the
 # mode's browser: MODE, else the mode the config gives web app NAME, else the desk's. With
 # --focus, an existing one on the mode's workspaces (class or title) is focused instead.
@@ -166,6 +172,8 @@ webapp() {
   take_mode ${want:+"--mode=$want"}
   url=${1:-}
   shift || true
+  # No browser chosen for the mode yet: Omarchy's own web-app launcher.
+  [[ -n $(browser_exe "$mode") ]] || dm_exec omarchy-launch-webapp "$url" "$@"
   if [[ -n $focus ]]; then
     addr=$(mode_window "$mode" '((.class // "") | test("\\b" + $p + "\\b"; "i")) or ((.title // "") | test("\\b" + $p + "\\b"; "i"))' "$focus")
     if [[ -n $addr ]]; then
@@ -831,6 +839,7 @@ case $cmd in
   tmux) tmux_session ;;
   herdr) herdr_session ;;
   desktop-apply) desktop_apply ;;
+  apps-missing) apps_missing ;;
   desktop-check) desktop_check "$@" ;;
   browser) browser "$@" ;;
   webapp) webapp "$@" ;;

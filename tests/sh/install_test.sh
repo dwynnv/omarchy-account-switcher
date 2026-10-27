@@ -349,4 +349,15 @@ t_odd_bar() {
 }
 t_test "a bar section that isn't a list doesn't stop install, and uninstall never empties shell.json" t_odd_bar
 
+t_install_without_browser() {
+  fresh
+  configured
+  jq 'del(.work.browser, .personal.browser)' "$HOME/.config/account-switcher/config.json" >"$TMP/c" && cat "$TMP/c" >"$HOME/.config/account-switcher/config.json"
+  local out
+  out=$("$DM" install 2>&1)
+  t_eq $? 0 "install with no browser chosen yet"
+  t_ok grep -qF "Choose apps" <<<"$out"
+}
+t_test "install finishes before any browser is chosen, and says where to choose them" t_install_without_browser
+
 t_done

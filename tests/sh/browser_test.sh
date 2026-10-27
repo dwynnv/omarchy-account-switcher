@@ -242,4 +242,22 @@ t_user_webapp() {
 }
 t_test "a user's own web app in the config opens in its mode too; an unknown name is reported" t_user_webapp
 
+t_no_browser_yet() {
+  fresh
+  config 'del(.work.browser, .personal.browser)'
+  desk work
+  "$DM" open https://example.com
+  t_eq $? 0
+  log_has "omarchy-launch-browser https://example.com"
+  : >"$ACCOUNT_SWITCHER_RUN_LOG"
+  "$DM" webapp --name=X https://x.example
+  t_eq $? 0
+  log_has "omarchy-launch-webapp https://x.example"
+  : >"$ACCOUNT_SWITCHER_RUN_LOG"
+  "$DM" browser --mode=work
+  t_eq $? 0
+  log_has "omarchy-launch-browser"
+}
+t_test "with no browser chosen yet, links, web apps and the browser key use Omarchy's launchers" t_no_browser_yet
+
 t_done

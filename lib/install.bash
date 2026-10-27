@@ -212,8 +212,10 @@ dm_install() {
   cat <<EOF
 account-switcher: installed. Next:
   1. omarchy restart shell
-  2. In a new terminal, sign each GitHub account in once with gh auth login; every mode uses its own.
-  3. Sign each mode's browser into that mode's accounts.
+  2. Choose each mode's browser and apps: "Choose apps…" in the badge's panel (right-click it),
+     or omarchy-shell account-switcher.apps open.
+  3. In a new terminal, sign each GitHub account in once with gh auth login; every mode uses its own.
+  4. Sign each mode's browser into that mode's accounts.
 To remove it later: account-switcher uninstall first, then omarchy plugin remove account-switcher.
 EOF
 }

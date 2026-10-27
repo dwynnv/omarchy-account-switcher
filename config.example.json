@@ -1,9 +1,11 @@
 {
   "work": {
-    "git": { "name": "Your Name", "email": "you@work.example" },
+    "git": {
+      "name": "Your Name",
+      "email": "you@work.example"
+    },
     "github": "your-work-login",
     "githubOwners": [],
-    "browser": "your-work-browser",
     "apps": [],
     "webapps": [],
     "folders": {
@@ -16,13 +18,18 @@
     }
   },
   "personal": {
-    "git": { "name": "Your Name", "email": "you@home.example" },
+    "git": {
+      "name": "Your Name",
+      "email": "you@home.example"
+    },
     "github": "your-login",
     "githubOwners": [],
-    "browser": "your-personal-browser",
     "apps": [],
     "webapps": [],
-    "folders": { "home": "~", "agent": "~/Projects" }
+    "folders": {
+      "home": "~",
+      "agent": "~/Projects"
+    }
   },
   "accounts": [],
   "webappsFollowMode": [],

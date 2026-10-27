@@ -199,7 +199,7 @@ TEMPLATE|work.git.email: still the example's
 TEMPLATE|personal.github: still the example's
 BADJSON|config.json
 .work.browser = "netscape"|work.browser
-del(.personal.browser)|personal.browser
+.personal.browser = 7|personal.browser
 .personal.browser = "google-chrome"|personal.browser
 .personal.apps += ["slack"]|personal.apps
 .work.apps = ["nope"]|work.apps
@@ -280,6 +280,25 @@ t_nothing_built_in() {
 }
 t_test "nothing is built in: every browser and app comes from the config" t_nothing_built_in
 
+t_browser_optional() {
+  fresh
+  edit 'del(.work.browser, .personal.browser)'
+  t_ok "$DM" config check
+  "$DM" setup >/dev/null
+  t_eq $? 0
+  source "$(STATE)/config.bash"
+  t_eq "$DM_BROWSER_BIN_work" ""
+  t_eq "$DM_BROWSER_CLASS_personal" ""
+  t_eq "$(grep -c -E '^(exe|browser) ' "$(STATE)/apps")" 0
+  t_eq "$(grep -c 'null' "$(STATE)/apps" "$(STATE)/config.bash" | awk -F: '{s+=$2} END {print s}')" 0
+  t_eq "$(jq -c '.names' "$(STATE)/hold.json")" '["slack"]'
+  t_eq "$("$DM" apps-missing)" $'work\npersonal'
+  edit '.work.browser = "google-chrome"'
+  "$DM" setup >/dev/null
+  t_eq "$("$DM" apps-missing)" personal
+}
+t_test "a mode's browser can wait until it's chosen" t_browser_optional
+
 t_neutral_defaults() {
   fresh
   edit 'del(.mailto, .clockInApps)'
@@ -297,11 +316,10 @@ t_example_names_nothing() {
   t_eq "$(jq -c '[.customBrowsers, .customApps, .accounts, .holdApps, .webappsFollowMode, .work.apps, .work.webapps, .personal.apps, .personal.webapps]' "$ex")" '[{},{},[],[],[],[],[],[],[]]'
   t_eq "$(jq -r '.mailto' "$ex")" none
   t_eq "$(jq -r 'has("clockInApps")' "$ex")" false
+  t_eq "$(jq -c '[.work, .personal] | map(has("browser"))' "$ex")" '[false,false]'
   cp "$ex" "$(CFG)"
   out=$("$DM" config check 2>&1)
-  t_ok grep -qF "work.browser: still the example's; describe your browser in customBrowsers and name it here" <<<"$out"
-  t_ok grep -qF "personal.browser: still the example's; describe your browser in customBrowsers and name it here" <<<"$out"
-  t_ok test "$(grep -c 'unknown browser' <<<"$out")" = 0
+  t_ok test "$(grep -c 'browser' <<<"$out")" = 0
 }
 t_test "the example names no browser, app, web app or mail service of anyone's" t_example_names_nothing
 
