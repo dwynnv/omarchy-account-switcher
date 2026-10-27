@@ -28,12 +28,13 @@ Work and Personal on one machine, each a whole desk: its own workspaces, account
 - **Screen-share guard**: while you share your screen, a switch asks first, the share picker offers only the current mode's windows, the other mode's windows are blacked out of shares, and notifications that aren't urgent wait.
 - **Work waits for you**: in Personal, notifications from Work's apps and browser wait (calls too) and show when you're back in Work. Do not disturb still decides first.
 - **Time in each mode**, today and this week, counted while you're at the keyboard.
-- **The panel** (right-click the badge): the mode, clock in/out, time, what's waiting (with **Show now**), and every setting with the command that changes it.
+- **The panel** (right-click the badge): the mode, clock in/out, time, what's waiting (with **Show now**), and every setting with the command that changes it (the Personal wallpaper is picked: **Browse…** / **Default**).
+- **The setup window** (**Choose apps…** in the panel): each mode's browser, and which installed apps and web apps live in Work, in Personal or in either, picked from what's on the system, with no JSON to write.
 
 ## Requirements
 
 - Omarchy 4 with the Lua Hyprland config (`~/.config/hypr/hyprland.lua`, Hyprland 0.56), Ghostty, jq.
-- Two different Chromium-family browsers, described in the config.
+- Two different Chromium-family browsers, chosen in the setup window.
 - Optional: `gh` (a GitHub account per mode), VS Code (a profile per mode), tmux, herdr.
 
 Tested on Omarchy 4.0 with Hyprland 0.56.
@@ -45,7 +46,7 @@ omarchy plugin add https://github.com/dwynnv/omarchy-account-switcher.git
 ~/.config/omarchy/plugins/account-switcher/bin/account-switcher install
 ```
 
-If `omarchy plugin add` asks whether to enable the plugin now, either answer is fine. The first run of `install` writes `~/.config/account-switcher/config.json` from the example and stops. Put your own accounts, browsers, apps and folders in it ([Config](#config)); install refuses to go on while any of the example's placeholders (`Your Name`, `you@…`, `your-…`) is left. Run `~/.config/omarchy/plugins/account-switcher/bin/account-switcher install` again (after that, `account-switcher` is on your PATH), then `omarchy restart shell`.
+If `omarchy plugin add` asks whether to enable the plugin now, either answer is fine. The first run of `install` writes `~/.config/account-switcher/config.json` from the example and stops. Put your own accounts and folders in it ([Config](#config)); install refuses to go on while any of the example's placeholders (`Your Name`, `you@…`, `your-…`) is left. Run `~/.config/omarchy/plugins/account-switcher/bin/account-switcher install` again (after that, `account-switcher` is on your PATH), then `omarchy restart shell`, then choose each mode's browser and apps in the setup window: **Choose apps…** in the badge's panel (right-click the badge), or `omarchy-shell account-switcher.apps open`. Until a mode has a browser, its links open in your default browser.
 
 To remove it, run `account-switcher uninstall` before `omarchy plugin remove` ([Uninstall](#uninstall)): removing the folder alone leaves your launchers, links, screen sharing and notifications pointing at it.
 
@@ -78,7 +79,7 @@ omarchy restart shell
 
 ## Config
 
-`~/.config/account-switcher/config.json` stays on your machine. After changing it, run `account-switcher setup`: it checks the file (one line per problem, naming the field: misspelt keys and leftover placeholders included), rewrites what's derived from it and the launcher entries. `account-switcher config check` only checks. Keys starting with `_` are comments. A filled-in example (every name in it is made up):
+`~/.config/account-switcher/config.json` stays on your machine. Browsers, apps and web apps are easiest in the setup window (**Choose apps…** in the badge's panel): it lists what's installed, works out what each needs, saves only those keys (backing the file up first, `config.json.bak.<epoch>`) and runs setup. Apps it can't place (an AppImage, a Flatpak, your own launcher entries, ones started through a wrapper) are greyed out with the reason; describe those by hand as below. After changing the file yourself, run `account-switcher setup`: it checks the file (one line per problem, naming the field: misspelt keys and leftover placeholders included), rewrites what's derived from it and the launcher entries. `account-switcher config check` only checks. Keys starting with `_` are comments. A filled-in example (every name in it is made up):
 
 ```json
 {
@@ -162,7 +163,7 @@ On the bar entry; change them with `omarchy bar set` (`''` clears one).
 | `clockOutAt` | `omarchy bar set account-switcher clockOutAt 18:00` | no clock-out reminder |
 | `clockDays` | `omarchy bar set account-switcher clockDays mon-fri` (or `sat,sun`, `fri-mon`) | Monday to Friday |
 | `clockInApps` | `omarchy bar set account-switcher clockInApps browser,code` | the config's list |
-| `personalWallpaper` | `omarchy bar set account-switcher personalWallpaper ~/Pictures/a.jpg` | one of Omarchy's backgrounds, copied at setup |
+| `personalWallpaper` | **Browse…** in the panel or the setup window (or `omarchy bar set account-switcher personalWallpaper ~/Pictures/a.jpg`) | one of Omarchy's backgrounds, copied at setup |
 | `personalColor` | `omarchy bar set account-switcher personalColor '#FF6A00'` (quoted: `#` starts a shell comment) | amber |
 
 Reminders come once a day: "Time to clock in" at the clock-in time unless you already did, "Time to clock out" while you're clocked in. A new wallpaper shows at the next switch; a new colour at once.
@@ -223,11 +224,13 @@ PRINT and ALT+PRINT already save to the mode's folders. For Omarchy's capture me
 
 `account-switcher` (in `~/.local/bin`): `install`, `uninstall [--purge]`, `setup`, `config check|path`, `current`, `env [MODE]`, `resolve`, `switch MODE [--confirmed]`, `terminal [--mode=M]`, `agent`, `files [--cwd]`, `tmux`, `herdr`, `browser [--mode=M] [--private] [URL]`, `webapp [--mode=M] [--name=NAME] [--focus=TEXT] URL`, `open [--mode=M] URL`, `mailto URL`, `zoom [URL]`, `app ID`, `capture screenshot|record|stop|webcam|toggle`, `clock in|out|status`, `notifications-sync`, `notifications-check [--ping]`, `desktop-apply`, `desktop-check [--fix]`.
 
-From the bar side: `omarchy-shell account-switcher status|time|switchMode|reapply`, `omarchy-shell account-switcher.panel toggle`, `omarchy-shell notifications heldCount|releaseHeld`.
+The setup window's side: `apps-list` (installed apps, browsers and web apps as JSON), `apps-set [JSON]` (the choice, as the argument or on stdin), `apps-missing` (modes with no browser yet).
+
+From the bar side: `omarchy-shell account-switcher status|time|switchMode|reapply`, `omarchy-shell account-switcher.apps open|close`, `omarchy-shell account-switcher.panel toggle`, `omarchy-shell notifications heldCount|releaseHeld`.
 
 ## Files
 
-- This folder: the bar widget, panel and service (`BarWidget.qml`, `Panel.qml`, `Service.qml`, `Model.js`), the Hyprland side (`hypr/`), commands (`bin/`), `lib/` (the environment, config and installer), `config.example.json`, `notifications/`, `shell/` (the `~/.bashrc` hooks), `tests/`.
+- This folder: the bar widget, panel and service (`BarWidget.qml`, `Panel.qml`, `Service.qml`, `Model.js`), the setup window (`AppsWindow.qml`, `AppsModel.js`), the Hyprland side (`hypr/`), commands (`bin/`), `lib/` (the environment, config, installer and the setup window's `apps.bash`), `config.example.json`, `notifications/`, `shell/` (the `~/.bashrc` hooks), `tests/`.
 - `~/.config/account-switcher/config.json`: your config.
 - `~/.local/state/account-switcher/`: the mode and per-monitor memory, what setup derived from the config (`config.bash`, `apps`, `hold.json`), shell histories, clock and reminder state, time, held notifications.
 - `~/.local/share/account-switcher/`: the Personal wallpaper, token-free `gh` settings per account (tokens stay in the keyring), Personal's empty AWS files, `z` data per mode.
