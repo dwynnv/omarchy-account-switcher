@@ -1,0 +1,10 @@
+[Desktop Entry]
+X-AccountSwitcher=managed
+Version=1.0
+Name=Browser
+Comment=Open links in the browser of the mode they belong to (account-switcher)
+Exec=@HOME@/.local/bin/account-switcher open %U
+Terminal=false
+Type=Application
+NoDisplay=true
+MimeType=x-scheme-handler/http;x-scheme-handler/https;

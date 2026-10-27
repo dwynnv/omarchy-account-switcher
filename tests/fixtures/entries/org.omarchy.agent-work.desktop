@@ -1,0 +1,11 @@
+[Desktop Entry]
+X-AccountSwitcher=managed
+Type=Application
+Name=Work Agent
+Comment=Agent with the Work accounts and folders (account-switcher)
+Exec=@HOME@/.local/bin/account-switcher agent --mode=work
+Icon=com.mitchellh.ghostty
+StartupWMClass=org.omarchy.agent-work
+Terminal=false
+Categories=System;
+NotShowIn=Hyprland;

@@ -1,0 +1,14 @@
+[Desktop Entry]
+Name=Steam
+Type=Application
+Exec=/usr/bin/steam %U
+MimeType=x-scheme-handler/steam;x-scheme-handler/steamlink;
+Actions=Store;Library;
+
+[Desktop Action Store]
+Name=Store
+Exec=/usr/bin/steam steam://store
+
+[Desktop Action Library]
+Name=Library
+Exec=/usr/bin/steam steam://open/games

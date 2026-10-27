@@ -1,0 +1,15 @@
+[Desktop Entry]
+X-AccountSwitcher=managed
+Name=Steam
+Type=Application
+Exec=@HOME@/.local/bin/account-switcher app steam %U
+MimeType=x-scheme-handler/steam;x-scheme-handler/steamlink;
+Actions=Store;Library;
+
+[Desktop Action Store]
+Name=Store
+Exec=@HOME@/.local/bin/account-switcher app steam steam://store
+
+[Desktop Action Library]
+Name=Library
+Exec=@HOME@/.local/bin/account-switcher app steam steam://open/games

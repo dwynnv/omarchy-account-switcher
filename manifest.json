@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "id": "account-switcher",
+  "name": "Account Switcher",
+  "version": "1.1.0",
+  "description": "Work and Personal modes for Omarchy: each with its own workspaces, accounts, browser, apps and folders, switched with one key.",
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Work / Personal",
+    "description": "Mode badge and the current mode's workspaces",
+    "category": "Compositor",
+    "allowMultiple": false,
+    "defaultSection": "left",
+    "defaults": {
+      "personalWallpaper": "",
+      "clockInAt": "",
+      "clockOutAt": "",
+      "clockDays": "mon-fri",
+      "clockInApps": "",
+      "personalColor": ""
+    },
+    "schema": [
+      {
+        "key": "personalWallpaper",
+        "type": "path",
+        "label": "Personal wallpaper",
+        "defaultValue": "",
+        "description": "Image for Personal mode; empty uses the one setup copied from Omarchy's backgrounds"
+      },
+      {
+        "key": "clockInAt",
+        "type": "string",
+        "label": "Clock-in reminder",
+        "defaultValue": "",
+        "description": "HH:MM; empty means no clock-in reminder"
+      },
+      {
+        "key": "clockOutAt",
+        "type": "string",
+        "label": "Clock-out reminder",
+        "defaultValue": "",
+        "description": "HH:MM; empty means no clock-out reminder"
+      },
+      {
+        "key": "clockDays",
+        "type": "string",
+        "label": "Reminder days",
+        "defaultValue": "mon-fri",
+        "description": "Day names or ranges, e.g. mon-fri or sat,sun"
+      },
+      {
+        "key": "clockInApps",
+        "type": "string",
+        "label": "Clock-in apps",
+        "defaultValue": "",
+        "description": "Started by Clock in when not running: Work apps by name, browser, code; empty uses the config's list"
+      },
+      {
+        "key": "personalColor",
+        "type": "string",
+        "label": "Personal colour",
+        "defaultValue": "",
+        "description": "#RRGGBB for the Personal badge and borders; empty uses amber"
+      }
+    ]
+  },
+  "author": "dwynnv",
+  "license": "MIT",
+  "repository": "https://github.com/dwynnv/omarchy-account-switcher",
+  "homepage": "https://github.com/dwynnv/omarchy-account-switcher"
+}

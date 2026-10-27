@@ -1,0 +1,9 @@
+[Desktop Entry]
+X-AccountSwitcher=managed
+Version=1.0
+Name=YouTube
+Exec=@HOME@/.local/bin/account-switcher webapp https://youtube.com/
+Terminal=false
+Type=Application
+Icon=youtube
+StartupNotify=true

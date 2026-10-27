@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# BROWSER in per-mode shells (gh, git web--browse, Python's webbrowser): open the links in
+# the mode of whoever asked.
+exec "$HOME/.local/bin/account-switcher" open "$@"

@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# account-switcher commit guard: a config-defined prepare-commit-msg hook in
+# ~/.config/git/config. Refuses a commit whose committer isn't the repo owner's address,
+# or whose author is one of the user's own addresses but the wrong one. Teammates'
+# authorship, repos with no GitHub remote and unknown owners pass.
+# One commit through on purpose: git -c hook.account-switcher-guard.enabled=false commit …
+set -uo pipefail
+self=$(readlink -f "${BASH_SOURCE[0]}")
+source "${self%/bin/*}/lib/mode.bash"
+
+# The address a GitHub owner's repos commit with (config.json: each mode's login and
+# githubOwners, and the accounts), lowercase; nothing for an owner the config doesn't name.
+expected_for() { [[ -n $1 ]] && printf '%s\n' "${DM_OWNER_EMAIL[$1]-}"; }
+
+mode_for() {
+  local mode=${DM_EMAIL_MODE[$1]-personal}
+  printf '%s\n' "${mode^}"
+}
+
+# The owner's login's GitHub no-reply address ([<id>+]<login>@users.noreply.github.com) is
+# also theirs.
+own_noreply() {
+  local login=${DM_OWNER_LOGIN[$2]-}
+  [[ -n $login && ${1,,} =~ ^([0-9]+\+)?${login,,}@users\.noreply\.github\.com$ ]]
+}
+
+# The GitHub owner (lowercase) from an https, ssh or scp-style remote URL.
+owner_of() {
+  local host owner
+  if [[ $1 =~ ^[a-z+]+://([^/@]*@)?([^/:]+)(:[0-9]+)?/([^/]+)/ ]]; then
+    host=${BASH_REMATCH[2]} owner=${BASH_REMATCH[4]}
+  elif [[ $1 =~ ^([^/@]*@)?([^/:]+):([^/]+)/ ]]; then
+    host=${BASH_REMATCH[2]} owner=${BASH_REMATCH[3]}
+  else
+    return 0
+  fi
+  [[ ${host,,} == github.com ]] && printf '%s\n' "${owner,,}"
+  return 0
+}
+
+email_of_ident() { sed -n 's/.*<\([^>]*\)>.*/\1/p'; }
+
+# The author the commit will keep: git commit exports it; merges and the sequencer
+# (cherry-pick, revert, rebase picks) don't, so read the commit being replayed.
+author_email() {
+  if [[ -n ${GIT_AUTHOR_EMAIL:-} ]]; then
+    printf '%s\n' "$GIT_AUTHOR_EMAIL"
+    return
+  fi
+  if git rev-parse -q --verify CHERRY_PICK_HEAD >/dev/null 2>&1; then
+    git log -1 --format=%ae CHERRY_PICK_HEAD
+    return
+  fi
+  local script
+  script=$(git rev-parse --git-path rebase-merge/author-script 2>/dev/null)
+  if [[ -r $script ]]; then
+    sed -n "s/^GIT_AUTHOR_EMAIL='\(.*\)'\$/\1/p" "$script"
+    return
+  fi
+  git var GIT_AUTHOR_IDENT 2>/dev/null | email_of_ident
+}
+
+if [[ ${1:-} == --owner-of ]]; then
+  owner_of "${2:-}"
+  exit 0
+fi
+
+url=$(git remote get-url origin 2>/dev/null) || {
+  remote=$(git remote 2>/dev/null | head -n1)
+  [[ -n $remote ]] && url=$(git remote get-url "$remote" 2>/dev/null)
+}
+[[ -n ${url:-} ]] || exit 0
+owner=$(owner_of "$url")
+expected=$(expected_for "$owner")
+[[ -n $expected ]] || exit 0
+
+committer=$(git var GIT_COMMITTER_IDENT 2>/dev/null | email_of_ident)
+author=$(author_email)
+if [[ ${committer,,} != "$expected" ]] && ! own_noreply "$committer" "$owner"; then
+  role=committer address=$committer
+elif [[ $DM_OWN_EMAILS == *" ${author,,} "* && ${author,,} != "$expected" ]]; then
+  role=author address=$author
+else
+  exit 0
+fi
+
+cat >&2 <<EOF
+account-switcher: commit refused. This repo belongs to github.com/$owner, which commits as
+$expected, but the $role would be ${address:-unknown}.
+  Fix: commit from a $(mode_for "$expected") terminal (SUPER+RETURN in that mode), or set this
+       repo's address with: git config user.email $expected
+  Let just this one through: git -c hook.account-switcher-guard.enabled=false commit …
+EOF
+exit 1

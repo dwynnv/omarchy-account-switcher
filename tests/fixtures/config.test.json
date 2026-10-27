@@ -1,0 +1,36 @@
+{
+  "work": {
+    "git": { "name": "Alex Example", "email": "alex@work.example" },
+    "github": "alex-work",
+    "githubOwners": ["work-org"],
+    "browser": "google-chrome",
+    "apps": ["slack"],
+    "webapps": [],
+    "folders": {
+      "home": "~/Work",
+      "agent": "~/Work",
+      "files": "~/Work",
+      "screenshots": "~/Work/Pictures",
+      "recordings": "~/Work/Videos",
+      "downloads": "~/Work/Downloads"
+    }
+  },
+  "personal": {
+    "git": { "name": "alex", "email": "alex@home.example" },
+    "github": "alex",
+    "githubOwners": [],
+    "browser": "chromium",
+    "apps": ["steam"],
+    "webapps": ["WhatsApp", "Google Messages", "Google Photos", "X"],
+    "folders": { "home": "~", "agent": "~/Projects" }
+  },
+  "accounts": [
+    { "owner": "side-org", "mode": "personal", "github": "alex-side", "email": "alex@side.example", "folder": "~/Side" }
+  ],
+  "webappsFollowMode": ["YouTube", "Google Maps"],
+  "holdApps": [],
+  "clockInApps": ["slack", "browser", "code"],
+  "mailto": "gmail",
+  "customBrowsers": {},
+  "customApps": {}
+}

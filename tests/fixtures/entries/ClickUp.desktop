@@ -1,0 +1,6 @@
+[Desktop Entry]
+X-AccountSwitcher=managed
+Name=ClickUp
+Type=Application
+Exec=@HOME@/.local/bin/account-switcher app clickup %U
+StartupWMClass=ClickUp

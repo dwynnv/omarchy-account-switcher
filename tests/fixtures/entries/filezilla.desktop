@@ -1,0 +1,5 @@
+[Desktop Entry]
+X-AccountSwitcher=managed
+Name=FileZilla
+Type=Application
+Exec=@HOME@/.local/bin/account-switcher app filezilla

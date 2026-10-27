@@ -1,0 +1,9 @@
+[Desktop Entry]
+X-AccountSwitcher=managed
+Version=1.0
+Name=Google Maps
+Exec=@HOME@/.local/bin/account-switcher webapp https://maps.google.com
+Terminal=false
+Type=Application
+Icon=google-maps
+StartupNotify=true

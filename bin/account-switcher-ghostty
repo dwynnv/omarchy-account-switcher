@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Exec of account-switcher's com.mitchellh.ghostty.desktop override, which is also what
+# xdg-terminal-exec runs (appending --class=, --working-directory=, --title=, -e …).
+# No class (the launcher, the dock's pinned terminal, a bare xdg-terminal-exec): a terminal
+# of the requester's mode in that mode's folder. With a class: start that Ghostty, or ask its
+# running instance for a new window, because a plain second launch ignores the folder.
+set -uo pipefail
+self=$(readlink -f "${BASH_SOURCE[0]}")
+source "${self%/bin/*}/lib/mode.bash"
+
+class= dir= title= command=0
+for arg in "$@"; do
+  case $arg in
+    --class=*) class=${arg#--class=} ;;
+    --working-directory=*) dir=${arg#--working-directory=} ;;
+    --title=*) title=$arg ;;
+    -e) command=1 && break ;;
+  esac
+done
+
+args=("$@")
+mode=$(dm_class_mode "$class")
+if [[ -z $class ]]; then
+  mode=$(dm_requester_mode)
+  class=org.omarchy.term-$mode
+  if [[ -n $dir ]]; then
+    args=(--class="$class" "$@")
+  else
+    dir=$(dm_mode_dir "$mode" terminal)
+    args=(--class="$class" --working-directory="$dir" "$@")
+  fi
+fi
+# A per-mode class always gets its own mode; any other Ghostty keeps the mode it was given.
+if [[ -n $mode ]]; then
+  dm_env "$mode"
+elif [[ -z ${ACCOUNT_SWITCHER_MODE:-} ]]; then
+  dm_env "$(dm_requester_mode)"
+fi
+
+if ((command == 0)) && dm_has_bus_name "$class"; then
+  dm_exec /usr/bin/ghostty +new-window --class="$class" ${dir:+"--working-directory=$dir"} ${title:+"$title"}
+fi
+dm_exec /usr/bin/ghostty --gtk-single-instance=true "${args[@]}"

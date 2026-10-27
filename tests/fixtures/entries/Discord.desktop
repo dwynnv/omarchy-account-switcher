@@ -1,0 +1,9 @@
+[Desktop Entry]
+X-AccountSwitcher=managed
+Version=1.0
+Name=Discord
+Exec=@HOME@/.local/bin/account-switcher webapp --mode=personal https://discord.com/channels/@me
+Terminal=false
+Type=Application
+Icon=discord
+StartupNotify=true

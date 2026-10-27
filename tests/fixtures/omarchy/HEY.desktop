@@ -1,0 +1,8 @@
+[Desktop Entry]
+Version=1.0
+Name=HEY
+Exec=omarchy-launch-webapp https://app.hey.com
+Terminal=false
+Type=Application
+Icon=hey
+StartupNotify=true

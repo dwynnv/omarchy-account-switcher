@@ -1,0 +1,11 @@
+[Desktop Entry]
+X-AccountSwitcher=managed
+Type=Application
+Name=Personal Agent
+Comment=Agent with the Personal accounts and folders (account-switcher)
+Exec=@HOME@/.local/bin/account-switcher agent --mode=personal
+Icon=com.mitchellh.ghostty
+StartupWMClass=org.omarchy.agent-personal
+Terminal=false
+Categories=System;
+NotShowIn=Hyprland;

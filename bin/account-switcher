@@ -1,0 +1,846 @@
+#!/usr/bin/env bash
+# account-switcher: everything outside Hyprland that depends on the Work/Personal mode.
+# Usage: account-switcher <command> [args…]   (commands are listed in README.md)
+set -uo pipefail
+self=$(readlink -f "${BASH_SOURCE[0]}")
+source "${self%/bin/*}/lib/mode.bash"
+source "${self%/bin/*}/lib/config.bash"
+source "${self%/bin/*}/lib/install.bash"
+
+usage() {
+  echo "usage: account-switcher current|env [MODE]|resolve|switch MODE|setup|config check|path|install|uninstall [--purge]|terminal|agent|files|tmux|herdr|browser|webapp|open|mailto|zoom|app|capture|clock in|out|status|notifications-sync|notifications-check [--ping]|desktop-apply|desktop-check [--fix]" >&2
+  exit 2
+}
+
+BIN=$HOME/.local/bin
+APPS=${XDG_DATA_HOME:-$HOME/.local/share}/applications
+SYSTEM_APPS=${ACCOUNT_SWITCHER_SYSTEM_APPS:-/usr/share/applications}
+OMARCHY_APPS=${ACCOUNT_SWITCHER_OMARCHY_APPS:-${OMARCHY_PATH:-/usr/share/omarchy}/applications}
+CONFIG=${XDG_CONFIG_HOME:-$HOME/.config}
+
+# MODE from a leading --mode=MODE, else the desk's; switching the desk when it differs,
+# unless NO_SWITCH is set (a link from a program in the background).
+NO_SWITCH=
+take_mode() {
+  mode=
+  if [[ ${1:-} == --mode=* ]]; then mode=${1#--mode=}; fi
+  dm_valid_mode "$mode" || mode=$(dm_desk_mode)
+  [[ -n $NO_SWITCH ]] || dm_switch "$mode"
+}
+
+# terminal [--mode=MODE] [-- COMMAND…]: a Ghostty of the mode's class and environment.
+terminal() {
+  take_mode "$@"
+  [[ ${1:-} == --mode=* ]] && shift
+  [[ ${1:-} == -- ]] && shift
+  local dir
+  dir=$(dm_terminal_dir "$mode")
+  dm_env "$mode"
+  cd "$dir" 2>/dev/null || cd "$HOME" || true
+  if (($#)); then
+    dm_exec setsid uwsm-app -- xdg-terminal-exec --app-id="org.omarchy.term-$mode" --dir="$dir" -e "$@"
+  fi
+  dm_exec setsid uwsm-app -- xdg-terminal-exec --app-id="org.omarchy.term-$mode" --dir="$dir"
+}
+
+# agent [--mode=MODE]: Omarchy's agent in a window of the mode's agent class, started in
+# ~/Work or ~/Projects (omarchy-agent would turn ~ into ~/Work).
+agent() {
+  take_mode "$@"
+  local dir
+  dir=$(dm_mode_dir "$mode" agent)
+  dm_env "$mode"
+  cd "$dir" 2>/dev/null || true
+  dm_exec setsid uwsm-app -- xdg-terminal-exec --app-id="org.omarchy.agent-$mode" --dir="$dir" -e omarchy-agent --inline
+}
+
+# files [--cwd | PATH…]: Nautilus is one process for both modes, so only the folder differs.
+# It starts without the caller's mode, so what it opens later (VS Code, terminals) follows
+# the desk instead of whichever terminal happened to start it.
+files() {
+  local dir clean=(env) name
+  for name in "${DM_ENV_VARS[@]}"; do clean+=(-u "$name"); done
+  if [[ ${1:-} == --cwd ]]; then
+    dir=$(dm_run omarchy-cmd-terminal-cwd 2>/dev/null)
+    dm_exec "${clean[@]}" setsid uwsm-app -- nautilus --new-window "${dir:-$HOME}"
+  fi
+  if (($#)); then
+    dm_exec "${clean[@]}" setsid uwsm-app -- nautilus --new-window "$@"
+  fi
+  dm_exec "${clean[@]}" setsid uwsm-app -- nautilus --new-window "$(dm_mode_dir "$(dm_desk_mode)" files)"
+}
+
+# Omarchy's tmux key, against the mode's own server (TMUX_TMPDIR, set by dm_env): a server
+# keeps the environment of the client that started it.
+tmux_session() {
+  local mode
+  mode=$(dm_desk_mode)
+  terminal --mode="$mode" -- bash -c "tmux attach || tmux new -s ${mode^}"
+}
+
+# Omarchy's herdr key: the mode's own server (HERDR_SOCKET_PATH) and session.
+herdr_session() {
+  local mode
+  mode=$(dm_desk_mode)
+  terminal --mode="$mode" -- herdr --session "$mode"
+}
+
+# Each mode's browser (config.json "browser"), or nothing before setup.
+browser_exe() { local v=DM_BROWSER_BIN_${1:-}; printf '%s\n' "${!v-}"; }
+browser_class() { local v=DM_BROWSER_CLASS_${1:-}; printf '%s\n' "${!v-}"; }
+
+# A token from the catalog or config (letters, digits, / . _ + -) as a literal in a sed regex,
+# basic, or extended with -E.
+re_literal() {
+  local t=${1//./\\.}
+  [[ ${2:-} == -E ]] && t=${t//+/\\+}
+  printf '%s\n' "$t"
+}
+
+# The most recently focused window on MODE's workspaces (Work 1-10, Personal 11-20) that
+# passes a jq test, which can use $p (ARG).
+mode_window() {
+  local lo=1 hi=10
+  [[ $1 == personal ]] && lo=11 hi=20
+  dm_run hyprctl clients -j 2>/dev/null | jq -r --argjson lo "$lo" --argjson hi "$hi" --arg p "${3:-}" \
+    "[.[] | select(.workspace.id >= \$lo and .workspace.id <= \$hi) | select($2)] | sort_by(.focusHistoryID) | .[0].address // empty" 2>/dev/null
+}
+focus_window() { dm_run hyprctl dispatch "hl.dsp.focus({ window = \"address:$1\" })" >/dev/null; }
+
+# browser [--mode=MODE] [--private] [URL | --app=URL | FLAG…]: the mode's browser through
+# Omarchy's handoff to a running one, else started the way omarchy-launch-browser does. A URL
+# also focuses the mode's most recent browser window, where the new tab lands.
+browser() {
+  if [[ ${1:-} == --no-switch ]]; then
+    NO_SWITCH=1
+    shift
+  fi
+  take_mode "$@"
+  [[ ${1:-} == --mode=* ]] && shift
+  local exe args=() url= arg addr
+  exe=$(browser_exe "$mode")
+  for arg in "$@"; do
+    case $arg in
+      --private) args+=(--incognito) ;;
+      -*) args+=("$arg") ;;
+      *)
+        [[ -n $url ]] || url=$arg
+        args+=("$arg")
+        ;;
+    esac
+  done
+  # Before setup there is no browser per mode: Omarchy's own launcher.
+  [[ -n $exe ]] || dm_exec omarchy-launch-browser "${args[@]}"
+  dm_env "$mode"
+  if ! dm_run omarchy-cmd-browser-handoff "$exe" "${args[@]}"; then
+    dm_run systemd-run --user --quiet --collect --unit="account-switcher-browser-$(date +%s%N)" \
+      --property=StandardOutput=null --property=StandardError=null uwsm-app -- "$exe" "${args[@]}"
+  fi
+  # Bring the window the tab lands in forward, unless the link came from the background:
+  # focusing the other mode's browser would take the desk across after all.
+  if [[ -n $url && -z $NO_SWITCH ]]; then
+    addr=$(mode_window "$mode" '.class == $p' "$(browser_class "$mode")")
+    [[ -n $addr ]] && focus_window "$addr"
+  fi
+  return 0
+}
+
+# webapp [--mode=MODE] [--name=NAME] [--focus=TEXT] URL [FLAG…]: a web-app window of the
+# mode's browser: MODE, else the mode the config gives web app NAME, else the desk's. With
+# --focus, an existing one on the mode's workspaces (class or title) is focused instead.
+webapp() {
+  local want= name= focus= url addr
+  while [[ ${1:-} == --mode=* || ${1:-} == --name=* || ${1:-} == --focus=* ]]; do
+    case $1 in
+      --mode=*) want=${1#--mode=} ;;
+      --name=*) name=${1#--name=} ;;
+      --focus=*) focus=${1#--focus=} ;;
+    esac
+    shift
+  done
+  if [[ -z $want && -n $name ]]; then
+    case ${DM_WEBAPP_MODE[$name]-} in
+      work | personal) want=${DM_WEBAPP_MODE[$name]} ;;
+    esac
+  fi
+  take_mode ${want:+"--mode=$want"}
+  url=${1:-}
+  shift || true
+  if [[ -n $focus ]]; then
+    addr=$(mode_window "$mode" '((.class // "") | test("\\b" + $p + "\\b"; "i")) or ((.title // "") | test("\\b" + $p + "\\b"; "i"))' "$focus")
+    if [[ -n $addr ]]; then
+      focus_window "$addr"
+      return 0
+    fi
+  fi
+  browser --mode="$mode" --app="$url" "$@"
+}
+
+# open [--mode=MODE] URL…: links in the mode of whoever opened them. A link
+# from the other mode switches the desk only when it comes from what the user is working
+# in; a program in the background gets its mode's browser without pulling the desk across
+# (the browser's window then waits as an alert). Only URLs and paths pass: nothing that
+# looks like an option ever reaches the browser.
+open_links() {
+  local mode= url urls=() quiet=
+  if [[ ${1:-} == --mode=* ]]; then
+    mode=${1#--mode=}
+    shift
+  fi
+  for url in "$@"; do
+    if [[ $url =~ ^[A-Za-z][A-Za-z0-9+.-]*: || $url == /* ]]; then
+      urls+=("$url")
+    else
+      echo "account-switcher open: ignoring '$url' (not a URL)" >&2
+    fi
+  done
+  (($# == 0 || ${#urls[@]} > 0)) || return 1
+  if ! dm_valid_mode "$mode"; then
+    mode=$(dm_requester_mode)
+    [[ $mode == "$(dm_desk_mode)" ]] || dm_focused_is_ancestor || quiet=--no-switch
+  fi
+  if ((${#urls[@]} == 0)); then
+    browser $quiet --mode="$mode"
+    return
+  fi
+  for url in "${urls[@]}"; do browser $quiet --mode="$mode" "$url"; done
+}
+
+# mailto URL: Gmail compose in the requester's mode (config.json "mailto": "gmail").
+mailto() {
+  local enc
+  enc=$(jq -rn --arg u "${1:-mailto:}" '$u | @uri')
+  browser --mode="$(dm_requester_mode)" "https://mail.google.com/mail/?extsrc=mailto&url=$enc"
+}
+
+# zoom [URL]: Omarchy's Zoom handler, in the current mode's browser.
+zoom() {
+  local url=${1:-} web=https://app.zoom.us/wc/home confno pwd
+  if [[ $url =~ ^zoom(mtg|us):// ]]; then
+    confno=$(sed -n 's/.*[?&]confno=\([^&]*\).*/\1/p' <<<"$url")
+    pwd=$(sed -n 's/.*[?&]pwd=\([^&]*\).*/\1/p' <<<"$url")
+    [[ -n $confno ]] && web=https://app.zoom.us/wc/join/$confno${pwd:+?pwd=$pwd}
+  fi
+  webapp "$web"
+}
+
+# app ID [ARG…]: a home-mode app (config.json "apps") takes the desk to its mode first, then
+# starts with that mode's environment. Most apps hand a second start to the running copy; one
+# marked focusExisting (FileZilla) has its existing window focused instead.
+app() {
+  local name=${1:-} exe addr
+  shift || true
+  [[ -n $name && -n ${DM_APP_MODE[$name]-} ]] || usage
+  mode=${DM_APP_MODE[$name]} exe=${DM_APP_BIN[$name]}
+  take_mode --mode="$mode"
+  if [[ ${DM_APP_FOCUS[$name]-0} == 1 ]]; then
+    addr=$(mode_window "$mode" '((.class // "") | ascii_downcase) == $p' "${DM_APP_CLASS[$name]}")
+    if [[ -n $addr ]]; then
+      focus_window "$addr"
+      return 0
+    fi
+  fi
+  dm_env "$mode"
+  dm_exec setsid uwsm-app -- "$exe" "$@"
+}
+
+# The clock-in apps, one name per line: the bar setting clockInApps (a list or a
+# comma-separated string), else the config's. `chrome` is the old name of `browser`.
+clock_apps() {
+  local apps
+  apps=$(jq -r '[.bar.layout[]?[]? | select(.id? == "account-switcher")][0].clockInApps // empty
+    | if type == "array" then join(",") else tostring end' "$CONFIG/omarchy/shell.json" 2>/dev/null)
+  [[ -n $apps ]] || apps=$DM_CLOCK_APPS
+  tr ', ' '\n\n' <<<"$apps" | awk 'NF { print ($0 == "chrome" ? "browser" : $0) }'
+}
+
+# An app counts by its process (Slack lives in the tray), the browser by a window, and the
+# Work VS Code by the pid it writes to its data dir's code.lock. Unknown names count as running.
+clock_app_running() {
+  local pid=
+  case $1 in
+    browser)
+      [[ -n $(dm_run hyprctl clients -j 2>/dev/null |
+        jq -r --arg c "$DM_BROWSER_CLASS_work" '.[] | select((.class // "" | ascii_downcase) == $c) | .address' 2>/dev/null) ]]
+      ;;
+    code)
+      { read -r pid <"$CONFIG/Code/code.lock"; } 2>/dev/null
+      [[ $pid =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null
+      ;;
+    *)
+      [[ -n ${DM_APP_BIN[$1]-} ]] || return 0
+      dm_run pgrep -x "${DM_APP_BIN[$1]##*/}" >/dev/null
+      ;;
+  esac
+}
+
+# Start a clock-in app in the background; Hyprland puts its next window where that app's
+# window last closed in Work (desk.expect).
+clock_launch() {
+  local class cmd
+  case $1 in
+    browser) class=$DM_BROWSER_CLASS_work cmd=("$self" browser --mode=work) ;;
+    code) class=com.microsoft.VSCode cmd=("${self%/*}/code") ;;
+    *)
+      [[ -n ${DM_APP_CLASS[$1]-} ]] || return 0
+      class=${DM_APP_CLASS[$1]} cmd=("$self" app "$1")
+      ;;
+  esac
+  dm_run hyprctl dispatch "function() if account_switcher then account_switcher.desk.expect('$class') end end" >/dev/null
+  dm_run setsid -f "${cmd[@]}" </dev/null >/dev/null 2>&1
+}
+
+clock_record() {
+  local state
+  state=$(dm_state_dir)
+  mkdir -p "$state"
+  printf '%s %s\n' "$1" "$(date -Iseconds)" >"$state/clock.tmp" && mv -f "$state/clock.tmp" "$state/clock"
+}
+
+# The user's own clock step, ~/.config/account-switcher/hooks/clock-in or clock-out, when it's
+# executable: started on its own once the desk has switched, so a slow one never holds clock up.
+clock_hook() {
+  local hook
+  hook=$(dirname "$(dm_config_path)")/hooks/clock-$1
+  [[ -f $hook && -x $hook ]] && dm_run setsid -f "$hook" >/dev/null 2>&1
+  return 0
+}
+
+# clock in|out|status. In: Work, the clock-in apps that aren't running, then the clock-in hook
+# (with Work's environment). Out: Personal, then the clock-out hook. Each takes its reminder
+# toast down.
+clock() {
+  local name
+  case ${1:-} in
+    in)
+      dm_switch work
+      dm_env work
+      while read -r name; do
+        clock_app_running "$name" || clock_launch "$name"
+      done < <(clock_apps)
+      clock_hook in
+      clock_record in
+      dm_run omarchy-shell -q notifications dismiss "Time to clock in" >/dev/null 2>&1
+      ;;
+    out)
+      dm_switch personal
+      clock_hook out
+      clock_record out
+      dm_run omarchy-shell -q notifications dismiss "Time to clock out" >/dev/null 2>&1
+      ;;
+    status) cat "$(dm_state_dir)/clock" 2>/dev/null || echo none ;;
+    *) usage ;;
+  esac
+  return 0
+}
+
+NOTIFY_ID=account-switcher.notifications
+NOTIFY_SRC=${ACCOUNT_SWITCHER_NOTIFY_SRC:-${OMARCHY_PATH:-/usr/share/omarchy}/shell/plugins/notifications}
+QMLLINT=${ACCOUNT_SWITCHER_QMLLINT:-/usr/lib/qt6/bin/qmllint}
+PING_WAIT=${ACCOUNT_SWITCHER_PING_WAIT:-3}
+
+# Omarchy's plugin and this plugin's patch, hashed: a change in either means a re-sync.
+notifications_hash() {
+  local dir=${self%/bin/*}/notifications
+  {
+    (cd "$NOTIFY_SRC" && find . -type f -print0 | sort -z | xargs -0 sha256sum)
+    sha256sum "$dir/HoldLogic.js" "$dir/patch.sh"
+  } 2>/dev/null | sha256sum | cut -d' ' -f1
+}
+
+notifications_enabled() {
+  jq -e --arg id "$NOTIFY_ID" '[.plugins[]?.id] | index($id) != null' "$CONFIG/omarchy/shell.json" >/dev/null 2>&1
+}
+
+# notifications_ready [TRIES]: a notification daemon (Omarchy's own or the copy) answers within
+# TRIES pings (default 5), PING_WAIT seconds apart.
+notifications_ready() {
+  local i
+  for ((i = 0; i < ${1:-5}; i++)); do
+    [[ $(dm_run omarchy-shell notifications ping 2>/dev/null) == ok ]] && return 0
+    sleep "$PING_WAIT"
+  done
+  return 1
+}
+
+# Omarchy's own notifications never read held.json, so once the copy is off, what it was holding
+# is sent again to the daemon that runs now — app, title, text and urgency, so do-not-disturb
+# applies as usual — and the list empties. Kept for the next check when no daemon answers.
+notifications_handoff() {
+  local held entry app summary body icon urgency args
+  held=$(dm_state_dir)/held.json
+  (($(jq '.items | length' "$held" 2>/dev/null || echo 0) > 0)) || return 0
+  notifications_ready || return 1
+  while IFS= read -r entry; do
+    app=$(jq -r '.app // ""' <<<"$entry")
+    summary=$(jq -r '.summary // ""' <<<"$entry")
+    body=$(jq -r '.body // ""' <<<"$entry")
+    icon=$(jq -r '.appIcon // ""' <<<"$entry")
+    urgency=$(jq -r 'if .urgency == 2 then "critical" elif .urgency == 0 then "low" else "normal" end' <<<"$entry")
+    args=(--app-name "${app:-Notification}" -u "$urgency")
+    [[ -n $icon ]] && args+=(-i "$icon")
+    args+=("${summary:-${app:-Notification}}")
+    [[ -n $body ]] && args+=("$body")
+    dm_run omarchy-notification-send "${args[@]}" >/dev/null 2>&1
+  done < <(jq -c '.items[]? | .entry | objects' "$held" 2>/dev/null)
+  printf '{"version":1,"items":[]}\n' >"$held.tmp" && mv -f "$held.tmp" "$held"
+}
+
+# The clone can't be kept in step: when it is the one in use, Omarchy's own takes over again,
+# and gets what the copy was holding.
+notifications_fallback() {
+  notifications_enabled || return 0
+  dm_run omarchy-plugin-enable omarchy.notifications >/dev/null 2>&1
+  notifications_ready
+  dm_run omarchy-notification-send -u critical -g "◆" "Work notifications no longer wait" \
+    "$1, so Omarchy's own notifications are back. Run account-switcher notifications-sync, then omarchy plugin enable $NOTIFY_ID." \
+    >/dev/null 2>&1
+  notifications_handoff
+}
+
+# notifications-sync: rebuild ~/.config/omarchy/plugins/account-switcher.notifications from Omarchy's
+# notification plugin, HoldLogic.js and notifications/patch.sh. The copy is built in a hidden
+# folder and must patch and lint cleanly before it is swapped in; otherwise what exists stays.
+notifications_sync() {
+  local dir=${self%/bin/*}/notifications plugins=$CONFIG/omarchy/plugins state dest stage
+  state=$(dm_state_dir)
+  dest=$plugins/$NOTIFY_ID
+  if [[ ! -f $NOTIFY_SRC/Service.qml || ! -f $NOTIFY_SRC/manifest.json ]]; then
+    echo "account-switcher: no notification plugin at $NOTIFY_SRC" >&2
+    notifications_fallback "Omarchy's notification plugin is missing"
+    return 1
+  fi
+  mkdir -p "$plugins" "$state"
+  stage=$(mktemp -d "$plugins/.$NOTIFY_ID.XXXXXX") || return 1
+  if ! cp -aL "$NOTIFY_SRC/." "$stage/" || ! cp "$dir/HoldLogic.js" "$stage/" ||
+    ! jq --arg id "$NOTIFY_ID" '
+        .id = $id |
+        .name = "Notifications (Work waits)" |
+        .omarchy = ((if (.omarchy | type) == "object" then .omarchy else {} end) + {clonedFrom: "omarchy.notifications"}) |
+        del(.omarchy.clonePaths)
+      ' "$NOTIFY_SRC/manifest.json" >"$stage/manifest.json.new" ||
+    ! mv -f "$stage/manifest.json.new" "$stage/manifest.json" ||
+    ! "$dir/patch.sh" "$stage/Service.qml" || ! "$QMLLINT" "$stage/Service.qml" >/dev/null 2>&1; then
+    rm -rf "$stage"
+    echo "account-switcher: Omarchy's notification plugin no longer takes the patch; $dest left as it was" >&2
+    notifications_fallback "Omarchy's notifications changed"
+    return 1
+  fi
+  chmod 755 "$stage"
+  if [[ -d $dest ]] && diff -r "$stage" "$dest" >/dev/null 2>&1; then
+    rm -rf "$stage"
+  elif [[ -d $dest ]]; then
+    # Swapped in one step, so the shell never sees the plugin missing.
+    if ! mv --exchange --no-target-directory "$stage" "$dest"; then
+      rm -rf "$stage"
+      return 1
+    fi
+    rm -rf "$stage"
+    echo "account-switcher: rebuilt $dest" >&2
+  elif ! mv --no-target-directory "$stage" "$dest"; then
+    rm -rf "$stage"
+    return 1
+  fi
+  notifications_hash >"$state/notifications.source"
+}
+
+# notifications-check [--ping]: re-sync an installed clone when Omarchy's plugin (or the patch)
+# changed. With --ping (the bar service, after the shell starts): if the clone is the one in
+# use and doesn't answer, Omarchy's own takes over, so there's always a notification daemon.
+notifications_check() {
+  local state i
+  state=$(dm_state_dir)
+  # Omarchy's own in use (turned back on by hand, or the copy removed): hand over what was held.
+  notifications_enabled || notifications_handoff
+  [[ -d $CONFIG/omarchy/plugins/$NOTIFY_ID ]] || return 0
+  if [[ $(notifications_hash) != "$(cat "$state/notifications.source" 2>/dev/null)" ]]; then
+    notifications_sync || return 1
+  fi
+  [[ ${1:-} == --ping ]] && notifications_enabled || return 0
+  notifications_ready 3 && return 0
+  notifications_fallback "The notification copy didn't start"
+  return 1
+}
+
+# capture screenshot|record|stop|webcam|toggle [ARG…]: Omarchy's capture scripts, saving to the
+# desk's mode's screenshots/recordings folder from the config, or Omarchy's usual one, chosen
+# when the capture starts. toggle is ALT+PRINT: stop a recording, else open the recording menu.
+capture() {
+  local what=${1:-screenshot} var=OMARCHY_SCREENRECORD_DIR kind=RECS dir prefix
+  shift || true
+  [[ $what == screenshot ]] && var=OMARCHY_SCREENSHOT_DIR kind=SHOTS
+  dir=DM_${kind}_$(dm_desk_mode)
+  dir=${!dir-}
+  if [[ -n $dir ]]; then
+    mkdir -p "$dir"
+    prefix=(env "$var=$dir")
+  else
+    prefix=(env -u "$var")
+  fi
+  case $what in
+    screenshot) dm_exec "${prefix[@]}" omarchy-capture-screenshot "$@" ;;
+    record) dm_exec "${prefix[@]}" omarchy-capture-screenrecording "$@" ;;
+    stop) dm_exec "${prefix[@]}" omarchy-capture-screenrecording --stop-recording ;;
+    webcam) dm_exec "${prefix[@]}" omarchy-capture-screenrecording-with-webcam ;;
+    toggle)
+      dm_run "${prefix[@]}" omarchy-capture-screenrecording --stop-recording ||
+        dm_exec omarchy-menu toggle trigger.capture.screenrecord
+      ;;
+    *) usage ;;
+  esac
+}
+
+# Launcher entries the switcher writes carry X-AccountSwitcher=managed. One a user had under the same
+# name (their own tweak, Omarchy's copy, a web app they made) is kept in ORIGINALS before it is
+# replaced, and comes back when the switcher stops writing that entry (a config change or
+# uninstall). DRY is set while desktop-check works out what desktop-apply would write.
+ORIGINALS=$(dm_state_dir)/originals
+REAL_APPS=$APPS
+UNPATCHED=() WRITTEN=() UNKNOWN_WEBAPPS=()
+DRY=
+
+is_managed() { [[ -f $1 ]] && grep -qx 'X-AccountSwitcher=managed' "$1"; }
+
+# Keep the user's own entry NAME (in the real applications folder) before it is replaced.
+keep_entry() {
+  local own=$REAL_APPS/$1
+  [[ -z $DRY && -f $own ]] || return 0
+  is_managed "$own" && return 0
+  mkdir -p "$ORIGINALS/applications" && cp -a "$own" "$ORIGINALS/applications/$1"
+}
+
+# A system .desktop file copied over the user's, with the given sed edits, no D-Bus
+# activation (it would drop the caller's environment) and the switcher's marker key. When
+# an update changed the file so that some Exec line no longer goes through the switcher,
+# nothing is written (a working copy stays) and the name is kept in UNPATCHED.
+override() {
+  local src=$1 dst=$2 name
+  shift 2
+  name=${dst##*/}
+  [[ -r $src ]] || return 0
+  sed "$@" -e '/^DBusActivatable=/d' -e '0,/^\[Desktop Entry\]$/s//[Desktop Entry]\nX-AccountSwitcher=managed/' "$src" >"$dst.tmp" || return 1
+  if grep '^Exec=' "$dst.tmp" | grep -qv "^Exec=$BIN/"; then
+    rm -f "$dst.tmp"
+    UNPATCHED+=("$name")
+    return 0
+  fi
+  keep_entry "$name"
+  mv -f "$dst.tmp" "$dst"
+  WRITTEN+=("$name")
+}
+
+# An entry the switcher makes itself, from stdin, as NAME.
+write_entry() {
+  cat >"$APPS/$1.tmp" || return 1
+  keep_entry "$1"
+  mv -f "$APPS/$1.tmp" "$APPS/$1"
+  WRITTEN+=("$1")
+}
+
+# Dock entries for the per-mode terminal and agent classes. NotShowIn hides them from the
+# launcher; NoDisplay would hide them from the dock too.
+mode_entry() {
+  local kind=$1 mode=$2 sub=terminal label=Terminal
+  [[ $kind == agent ]] && sub=agent label=Agent
+  write_entry "org.omarchy.$kind-$mode.desktop" <<ENTRY
+[Desktop Entry]
+X-AccountSwitcher=managed
+Type=Application
+Name=${mode^} $label
+Comment=${label} with the ${mode^} accounts and folders (account-switcher)
+Exec=$BIN/account-switcher $sub --mode=$mode
+Icon=com.mitchellh.ghostty
+StartupWMClass=org.omarchy.$kind-$mode
+Terminal=false
+Categories=System;
+NotShowIn=Hyprland;
+ENTRY
+}
+
+# The commands the entries, keys, git and shells call by absolute path, linked into
+# ~/.local/bin first: an entry whose Exec is missing is skipped by xdg-terminal-exec. A command
+# of the user's own under one of these names is kept in ORIGINALS (uninstall puts it back).
+install_links() {
+  local plugin_bin=${self%/*} name dst target
+  mkdir -p "$BIN"
+  for name in "${COMMANDS[@]}"; do
+    dst=$BIN/$name
+    target=$(readlink "$dst" 2>/dev/null)
+    if [[ -L $dst ]] && [[ $target == "$plugin_bin/$name" || $target == */account-switcher/bin/"$name" ]]; then
+      :
+    elif [[ -e $dst || -L $dst ]]; then
+      mkdir -p "$ORIGINALS/bin" && mv -f "$dst" "$ORIGINALS/bin/$name"
+    fi
+    ln -sfn "$plugin_bin/$name" "$dst"
+  done
+}
+
+# Make DESKTOP the default for a MIME type in hyprland-mimeapps.list, which is read before
+# mimeapps.list (where the default browser must stay the http handler). The handler it
+# replaces is kept for mime_restore.
+mime_default() {
+  local list=$CONFIG/hyprland-mimeapps.list line="$1=$2" current saved=$ORIGINALS/mime-${1//\//_}
+  mkdir -p "$CONFIG"
+  grep -qxF "$line" "$list" 2>/dev/null && return 0
+  current=$(sed -n "s|^$1=||p" "$list" 2>/dev/null | head -n1)
+  if [[ -n $current ]]; then
+    [[ -e $saved ]] || { mkdir -p "$ORIGINALS" && printf '%s\n' "$current" >"$saved"; }
+    sed -i --follow-symlinks "s|^$1=.*|$line|" "$list"
+  elif grep -qx '\[Default Applications\]' "$list" 2>/dev/null; then
+    sed -i --follow-symlinks "/^\[Default Applications\]\$/a $line" "$list"
+  else
+    printf '[Default Applications]\n%s\n' "$line" >>"$list"
+  fi
+}
+
+# The handler mime_default replaced back (or its line out) once the switcher's isn't wanted.
+mime_restore() {
+  local list=$CONFIG/hyprland-mimeapps.list line="$1=$2" saved=$ORIGINALS/mime-${1//\//_}
+  grep -qxF "$line" "$list" 2>/dev/null || return 0
+  if [[ -s $saved ]]; then
+    sed -i --follow-symlinks "s|^$1=.*|$1=$(cat "$saved")|" "$list"
+  else
+    sed -i --follow-symlinks "\\|^$1=$2\$|d" "$list"
+  fi
+  rm -f "$saved"
+}
+
+# The entry a web app named NAME is made from: Omarchy's, else one the user made with
+# omarchy-webapp-install (as they left it: kept in ORIGINALS once the switcher adapted it).
+webapp_source() {
+  local own=$REAL_APPS/$1.desktop
+  if [[ -r $OMARCHY_APPS/$1.desktop ]]; then
+    printf '%s\n' "$OMARCHY_APPS/$1.desktop"
+  elif [[ -f $own ]] && ! is_managed "$own"; then
+    grep -q '^Exec=omarchy-launch-webapp ' "$own" || return 1
+    printf '%s\n' "$own"
+  elif [[ -r $ORIGINALS/applications/$1.desktop ]]; then
+    printf '%s\n' "$ORIGINALS/applications/$1.desktop"
+  else
+    return 1
+  fi
+}
+
+# Links, web apps, Zoom, mailto and the routed browsers. omarchy-browser.desktop
+# keeps its name, so omarchy-cmd-default-browser keeps skipping it and the default browser
+# stays "the browser".
+link_entries() {
+  write_entry omarchy-browser.desktop <<ENTRY
+[Desktop Entry]
+X-AccountSwitcher=managed
+Version=1.0
+Name=Browser
+Comment=Open links in the browser of the mode they belong to (account-switcher)
+Exec=$BIN/account-switcher open %U
+Terminal=false
+Type=Application
+NoDisplay=true
+MimeType=x-scheme-handler/http;x-scheme-handler/https;
+ENTRY
+  # The web apps the config names, bound to a mode or following the desk.
+  local name entry mode desktop token src
+  while IFS= read -r name; do
+    [[ -n $name ]] || continue
+    if ! src=$(webapp_source "$name"); then
+      UNKNOWN_WEBAPPS+=("$name")
+      continue
+    fi
+    case ${DM_WEBAPP_MODE[$name]} in
+      work | personal)
+        override "$src" "$APPS/$name.desktop" \
+          -e "s|^Exec=omarchy-launch-webapp |Exec=$BIN/account-switcher webapp --mode=${DM_WEBAPP_MODE[$name]} |"
+        ;;
+      *)
+        override "$src" "$APPS/$name.desktop" \
+          -e "s|^Exec=omarchy-launch-webapp |Exec=$BIN/account-switcher webapp |"
+        ;;
+    esac
+  done < <(printf '%s\n' "${!DM_WEBAPP_MODE[@]}" | sort)
+  override "$OMARCHY_APPS/Zoom.desktop" "$APPS/Zoom.desktop" \
+    -e "s|^Exec=omarchy-webapp-handler-zoom |Exec=$BIN/account-switcher zoom |"
+  # A browser's own entry (its launcher icon) opens it in its mode (catalog routeDesktop).
+  for entry in "${DM_ROUTE_BROWSERS[@]}"; do
+    read -r mode desktop token <<<"$entry"
+    token=$(re_literal "$token")
+    override "$SYSTEM_APPS/$desktop" "$APPS/$desktop" \
+      -e "s|^Exec=$token %U\$|Exec=$BIN/account-switcher browser --mode=$mode %U|" \
+      -e "s|^Exec=$token --incognito\$|Exec=$BIN/account-switcher browser --mode=$mode --private|" \
+      -e "s|^Exec=$token\$|Exec=$BIN/account-switcher browser --mode=$mode --new-window|"
+  done
+  [[ $DM_MAILTO == gmail ]] || return 0
+  write_entry account-switcher-mailto.desktop <<ENTRY
+[Desktop Entry]
+X-AccountSwitcher=managed
+Type=Application
+Name=Gmail compose
+Comment=Write mailto: links in Gmail, in the browser of the mode they belong to (account-switcher)
+Exec=$BIN/account-switcher mailto %u
+Terminal=false
+NoDisplay=true
+MimeType=x-scheme-handler/mailto;
+ENTRY
+}
+
+# Every launcher entry the switcher owns, written into $APPS.
+write_entries() {
+  mkdir -p "$APPS"
+  override "$SYSTEM_APPS/com.mitchellh.ghostty.desktop" "$APPS/com.mitchellh.ghostty.desktop" \
+    -e "s|^Exec=/usr/bin/ghostty --gtk-single-instance=true\$|Exec=$BIN/account-switcher-ghostty|"
+  override "$SYSTEM_APPS/org.gnome.Nautilus.desktop" "$APPS/org.gnome.Nautilus.desktop" \
+    -e "s|^Exec=nautilus --new-window|Exec=$BIN/account-switcher files|"
+  local m
+  for m in work personal; do
+    mode_entry term "$m"
+    mode_entry agent "$m"
+  done
+  link_entries
+  # Home-mode apps opened from the launcher or the dock take the desk to their mode.
+  local id token
+  for id in $(printf '%s\n' "${!DM_APP_MODE[@]}" | sort); do
+    token=$(re_literal "${DM_APP_EXEC[$id]}" -E)
+    override "$SYSTEM_APPS/${DM_APP_DESKTOP[$id]}" "$APPS/${DM_APP_DESKTOP[$id]}" -E \
+      -e "s#^Exec=$token( |\$)#Exec=$BIN/account-switcher app $id\\1#"
+  done
+}
+
+# Whether NAME is one of the following words.
+listed() {
+  local name=$1 n
+  shift
+  for n in "$@"; do [[ $n == "$name" ]] && return 0; done
+  return 1
+}
+
+# The switcher's own entries this run didn't write (an app or web app the config dropped, a
+# browser no longer routed): the user's own version back, else nothing.
+prune_entries() {
+  local f name
+  for f in "$APPS"/*.desktop; do
+    is_managed "$f" || continue
+    name=${f##*/}
+    listed "$name" "${WRITTEN[@]}" "${UNPATCHED[@]}" && continue
+    if [[ -f $ORIGINALS/applications/$name ]]; then mv -f "$ORIGINALS/applications/$name" "$f"; else rm -f "$f"; fi
+  done
+}
+
+# Write every launcher entry and default the switcher owns (after updates too; idempotent).
+desktop_apply() {
+  local name
+  install_links
+  WRITTEN=() UNPATCHED=() UNKNOWN_WEBAPPS=()
+  write_entries
+  prune_entries
+  if [[ $DM_MAILTO == gmail ]]; then
+    mime_default x-scheme-handler/mailto account-switcher-mailto.desktop
+  else
+    mime_restore x-scheme-handler/mailto account-switcher-mailto.desktop
+  fi
+  dm_run update-desktop-database "$APPS"
+  for name in "${UNKNOWN_WEBAPPS[@]}"; do
+    echo "account-switcher: no web-app launcher named \"$name\" (config.json webapps); it opens as before" >&2
+  done
+  return 0
+}
+
+# desktop-check [--fix]: list the entries that differ from what desktop-apply would write
+# (Omarchy's refresh and package updates put their own back) and the switcher's entries it no
+# longer writes; --fix re-applies them and says so in one notification. The shell's account-switcher
+# service runs this when that folder changes.
+desktop_check() {
+  local real=$APPS tmp f name changed=() seen
+  tmp=$(mktemp -d)
+  APPS=$tmp DRY=1 WRITTEN=() UNPATCHED=() UNKNOWN_WEBAPPS=()
+  write_entries
+  APPS=$real DRY=
+  # Entries an update made impossible to adapt: report them, and notify once per change.
+  if ((${#UNPATCHED[@]} > 0)); then
+    seen=$(cat "$(dm_state_dir)/unpatched" 2>/dev/null)
+    if [[ ${1:-} == --fix && $seen != "${UNPATCHED[*]}" ]]; then
+      mkdir -p "$(dm_state_dir)" && printf '%s\n' "${UNPATCHED[*]}" >"$(dm_state_dir)/unpatched"
+      dm_run notify-send -a account-switcher "Work/Personal: couldn't adapt ${UNPATCHED[*]}" \
+        "An update changed how they start; they now open without the mode switch. Run account-switcher desktop-check."
+    fi
+  else
+    rm -f "$(dm_state_dir)/unpatched"
+  fi
+  for f in "$tmp"/*.desktop; do
+    [[ -e $f ]] || continue
+    name=${f##*/}
+    cmp -s "$f" "$APPS/$name" || changed+=("$name")
+  done
+  for f in "$APPS"/*.desktop; do
+    is_managed "$f" || continue
+    name=${f##*/}
+    [[ -e $tmp/$name ]] || listed "$name" "${UNPATCHED[@]}" || changed+=("$name")
+  done
+  rm -rf "$tmp"
+  if [[ $DM_MAILTO == gmail ]] &&
+    ! grep -qxF 'x-scheme-handler/mailto=account-switcher-mailto.desktop' "$CONFIG/hyprland-mimeapps.list" 2>/dev/null; then
+    changed+=(hyprland-mimeapps.list)
+  fi
+  if ((${#changed[@]} > 0)) && [[ ${1:-} == --fix ]]; then
+    desktop_apply 2>/dev/null
+    dm_run notify-send -a account-switcher "Work/Personal launchers put back" \
+      "Omarchy had reset ${changed[*]}; they open in the right mode again."
+    return 0
+  fi
+  [[ ${1:-} == --fix ]] && return 0
+  ((${#changed[@]} > 0)) && printf '%s\n' "${changed[@]}"
+  for name in "${UNPATCHED[@]}"; do echo "can't patch $name"; done
+  ((${#changed[@]} + ${#UNPATCHED[@]} == 0))
+}
+
+# setup: the config checked and its files derived, the folders and per-mode state made; once
+# installed, the launcher entries follow the config too; Hyprland reloaded when its app rules
+# changed.
+setup_all() {
+  config_apply || return 1
+  dm_load_config
+  config_make_folders
+  dm_setup
+  [[ -L $BIN/account-switcher ]] && desktop_apply
+  if [[ $DM_APPS_CHANGED == 1 && -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+    dm_run hyprctl reload >/dev/null 2>&1
+  fi
+  return 0
+}
+
+cmd=${1:-}
+shift || true
+case $cmd in
+  current) dm_desk_mode ;;
+  env)
+    dm_env "${1:-$(dm_desk_mode)}"
+    dm_print_env
+    ;;
+  resolve) dm_requester_mode ;;
+  switch) dm_switch "${1:-}" "${2:-}" ;;
+  setup) setup_all || exit 1 ;;
+  install) dm_install || exit 1 ;;
+  uninstall) dm_uninstall "${1:-}" ;;
+  config)
+    case ${1:-} in
+      check) config_check ;;
+      path) dm_config_path ;;
+      *) usage ;;
+    esac
+    ;;
+  terminal) terminal "$@" ;;
+  agent) agent "$@" ;;
+  files) files "$@" ;;
+  tmux) tmux_session ;;
+  herdr) herdr_session ;;
+  desktop-apply) desktop_apply ;;
+  desktop-check) desktop_check "$@" ;;
+  browser) browser "$@" ;;
+  webapp) webapp "$@" ;;
+  open) open_links "$@" ;;
+  mailto) mailto "$@" ;;
+  zoom) zoom "$@" ;;
+  app) app "$@" ;;
+  capture) capture "$@" ;;
+  clock) clock "$@" ;;
+  notifications-sync) notifications_sync ;;
+  notifications-check) notifications_check "$@" ;;
+  *) usage ;;
+esac

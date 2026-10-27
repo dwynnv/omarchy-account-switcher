@@ -1,0 +1,10 @@
+[Desktop Entry]
+X-AccountSwitcher=managed
+Name=Files
+Type=Application
+Exec=@HOME@/.local/bin/account-switcher files %U
+MimeType=inode/directory;
+
+[Desktop Action new-window]
+Name=New Window
+Exec=@HOME@/.local/bin/account-switcher files

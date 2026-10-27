@@ -1,0 +1,34 @@
+{
+  "work": {
+    "git": { "name": "Your Name", "email": "you@work.example" },
+    "github": "your-work-login",
+    "githubOwners": [],
+    "browser": "google-chrome",
+    "apps": [],
+    "webapps": [],
+    "folders": {
+      "home": "~/Work",
+      "agent": "~/Work",
+      "files": "~/Work",
+      "screenshots": "~/Work/Pictures",
+      "recordings": "~/Work/Videos",
+      "downloads": "~/Work/Downloads"
+    }
+  },
+  "personal": {
+    "git": { "name": "Your Name", "email": "you@home.example" },
+    "github": "your-login",
+    "githubOwners": [],
+    "browser": "chromium",
+    "apps": [],
+    "webapps": ["WhatsApp", "Google Messages", "Google Photos", "X"],
+    "folders": { "home": "~", "agent": "~/Projects" }
+  },
+  "accounts": [],
+  "webappsFollowMode": ["YouTube", "Google Maps"],
+  "holdApps": [],
+  "clockInApps": ["browser", "code"],
+  "mailto": "gmail",
+  "customBrowsers": {},
+  "customApps": {}
+}

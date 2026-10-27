@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# xdg-desktop-portal-hyprland's share picker (custom_picker_binary in ~/.config/hypr/xdph.conf),
+# showing only the current mode's windows. xdph runs this with its own
+# systemd environment and the window list in XDPH_WINDOW_SHARING_LIST: records
+# <id>[HC>]<class>[HT>]<title>[HE>]<decimal window address>[HA>] (titles can't contain the
+# separators). A window counts when its workspace, or for a special workspace its scratchpad
+# or dwm-from-* tag, is of the desk's mode; unknown windows are left out.
+set -uo pipefail
+self=$(readlink -f "${BASH_SOURCE[0]}")
+source "${self%/bin/*}/lib/mode.bash"
+
+# The picker xdph used before (account-switcher install keeps its path), else xdph's own.
+picker=${ACCOUNT_SWITCHER_SHARE_PICKER:-}
+if [[ -z $picker ]]; then
+  { read -r picker <"$(dm_state_dir)/picker"; } 2>/dev/null
+  [[ -n $picker ]] || picker=hyprland-share-picker
+fi
+list=${XDPH_WINDOW_SHARING_LIST:-}
+mode=$(dm_desk_mode)
+filtered=
+
+if [[ -n $list ]]; then
+  declare -A mode_of=()
+  while IFS=' ' read -r address id name tags; do
+    m=
+    if ((id >= 1 && id <= 10)); then m=work
+    elif ((id >= 11 && id <= 20)); then m=personal
+    elif [[ $name == special:scratchpad ]]; then m=work
+    elif [[ $name == special:scratchpad-personal ]]; then m=personal
+    elif [[ ,$tags, == *,dwm-from-work,* ]]; then m=work
+    elif [[ ,$tags, == *,dwm-from-personal,* ]]; then m=personal
+    fi
+    [[ -n $m ]] && mode_of[$address]=$m
+  done < <(dm_run hyprctl clients -j 2>/dev/null |
+    jq -r '.[] | "\(.address) \(.workspace.id // 0) \(.workspace.name // "") \((.tags // []) | join(","))"' 2>/dev/null)
+
+  rest=$list
+  while [[ $rest == *"[HA>]"* ]]; do
+    record=${rest%%"[HA>]"*}
+    rest=${rest#*"[HA>]"}
+    address=${record##*"[HE>]"}
+    [[ $address =~ ^[0-9]+$ ]] && ((address > 0)) || continue
+    [[ ${mode_of[$(printf '0x%x' "$address")]:-} == "$mode" ]] && filtered+="$record[HA>]"
+  done
+fi
+
+dm_exec env XDPH_WINDOW_SHARING_LIST="$filtered" "$picker" "$@"

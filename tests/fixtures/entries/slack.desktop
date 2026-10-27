@@ -1,0 +1,7 @@
+[Desktop Entry]
+X-AccountSwitcher=managed
+Name=Slack
+Type=Application
+Exec=@HOME@/.local/bin/account-switcher app slack %U
+StartupWMClass=Slack
+MimeType=x-scheme-handler/slack;

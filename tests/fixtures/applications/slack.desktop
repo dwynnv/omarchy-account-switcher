@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Slack
+Type=Application
+Exec=/usr/bin/slack %U
+StartupWMClass=Slack
+MimeType=x-scheme-handler/slack;

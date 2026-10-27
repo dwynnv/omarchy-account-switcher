@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# `code` per mode: Work is ~/.config/Code, Personal ~/.config/Code-Personal, which
+# shares Work's settings, keys, snippets and extensions. Each data dir runs its own VS Code,
+# and that VS Code keeps the environment it was first started with (VSCODE_CLI skips the
+# login-shell lookup), so its terminals and git use its mode's accounts.
+set -uo pipefail
+self=$(readlink -f "${BASH_SOURCE[0]}")
+source "${self%/bin/*}/lib/mode.bash"
+
+# Extension management (Omarchy's theme step) and an explicit data dir go straight through.
+for arg in "$@"; do
+  case $arg in
+    --) break ;;
+    --list-extensions | --install-extension* | --uninstall-extension* | --locate-extension* | \
+      --version | -v | --help | -h | --status | --show-versions | --category* | --user-data-dir*)
+      dm_exec /usr/bin/code "$@"
+      ;;
+  esac
+done
+
+mode=$(dm_requester_mode)
+dm_env "$mode"
+unset VSCODE_APPDATA # it would override --user-data-dir
+if [[ $mode == personal ]]; then
+  dm_exec /usr/bin/code --user-data-dir "$HOME/.config/Code-Personal" "$@"
+fi
+dm_exec /usr/bin/code "$@"

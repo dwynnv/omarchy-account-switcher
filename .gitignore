@@ -1,0 +1,5 @@
+# Local only: design notes and records, backups, scratch files.
+docs/superpowers/
+*.bak.*
+*.tmp
+*.new

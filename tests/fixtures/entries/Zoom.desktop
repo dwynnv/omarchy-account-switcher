@@ -1,0 +1,10 @@
+[Desktop Entry]
+X-AccountSwitcher=managed
+Version=1.0
+Name=Zoom
+Exec=@HOME@/.local/bin/account-switcher zoom %u
+Terminal=false
+Type=Application
+Icon=zoom
+StartupNotify=true
+MimeType=x-scheme-handler/zoommtg;x-scheme-handler/zoomus

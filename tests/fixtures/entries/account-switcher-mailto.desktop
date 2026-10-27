@@ -1,0 +1,9 @@
+[Desktop Entry]
+X-AccountSwitcher=managed
+Type=Application
+Name=Gmail compose
+Comment=Write mailto: links in Gmail, in the browser of the mode they belong to (account-switcher)
+Exec=@HOME@/.local/bin/account-switcher mailto %u
+Terminal=false
+NoDisplay=true
+MimeType=x-scheme-handler/mailto;

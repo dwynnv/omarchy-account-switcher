@@ -1,0 +1,11 @@
+[Desktop Entry]
+X-AccountSwitcher=managed
+Type=Application
+Name=Work Terminal
+Comment=Terminal with the Work accounts and folders (account-switcher)
+Exec=@HOME@/.local/bin/account-switcher terminal --mode=work
+Icon=com.mitchellh.ghostty
+StartupWMClass=org.omarchy.term-work
+Terminal=false
+Categories=System;
+NotShowIn=Hyprland;

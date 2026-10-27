@@ -1,0 +1,15 @@
+[Desktop Entry]
+Name=Chromium
+Type=Application
+Exec=chromium %U
+StartupWMClass=chromium
+MimeType=text/html;x-scheme-handler/http;x-scheme-handler/https;
+Actions=new-window;new-private-window;
+
+[Desktop Action new-window]
+Name=New Window
+Exec=chromium
+
+[Desktop Action new-private-window]
+Name=New Incognito Window
+Exec=chromium --incognito
