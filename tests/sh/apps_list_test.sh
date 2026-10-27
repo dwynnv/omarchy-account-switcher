@@ -136,4 +136,13 @@ t_many_entries() {
 }
 t_test "hundreds of installed apps are listed and saved" t_many_entries
 
+t_control_characters() {
+  fresh
+  printf '[Desktop Entry]\nType=Application\nName=Odd\001 One\x1b\nExec=chat\nComment=bell\a\n' >"$TMP/sys/odd.desktop"
+  t_ok list >/dev/null
+  t_eq "$(one odd.desktop '[.name, .usable]')" '["Odd One",true]'
+  t_eq "$(one chat.desktop '.name')" '"Chat"' "the other apps still listed"
+}
+t_test "an entry with control characters doesn't break the list" t_control_characters
+
 t_done

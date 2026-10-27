@@ -33,7 +33,7 @@ apps_read_entries() {
       if (!(key in k)) k[key] = substr($0, i + 1)
     }
     END { if (path != "") emit() }
-    function esc(s) { gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); gsub(/\t/, " ", s); return "\"" s "\"" }
+    function esc(s) { gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); gsub(/\t/, " ", s); gsub(/[\001-\037\177]/, "", s); return "\"" s "\"" }
     function emit(  out, n, i, names) {
       split("Type Name Icon Exec StartupWMClass Categories NoDisplay Hidden OnlyShowIn NotShowIn", names, " ")
       out = "{\"path\":" esc(path)
@@ -131,6 +131,18 @@ apps_list() {
                   follow: ($c.webappsFollowMode // [])}}'
 }
 
+# Each Save backs the config up (<file>.bak.<epoch>); only the newest APPS_BACKUPS are kept.
+APPS_BACKUPS=5
+apps_prune_backups() {
+  local f
+  local -a old
+  mapfile -t old < <(for f in "$1".bak.*; do
+    [[ ${f##*.bak.} =~ ^[0-9]+$ ]] && printf '%s\t%s\n' "${f##*.bak.}" "$f"
+  done | sort -n | head -n -"$APPS_BACKUPS" | cut -f2-)
+  ((${#old[@]})) && rm -f -- "${old[@]}"
+  return 0
+}
+
 # apps-set [JSON]: the window's choice ({work: {browser, apps, webapps}, personal: {…}, follow}),
 # as the argument or on stdin,
 # saved to config.json. Only the keys the window owns change; entries it described itself come
@@ -201,6 +213,7 @@ apps_set() {
     return 1
   fi
   rm -f "$tmp"
+  apps_prune_backups "$real"
   setup_all >/dev/null || return 1
   echo "account-switcher: saved; setup done"
 }

@@ -79,7 +79,7 @@ omarchy restart shell
 
 ## Config
 
-`~/.config/account-switcher/config.json` stays on your machine. Browsers, apps and web apps are easiest in the setup window (**Choose apps…** in the badge's panel): it lists what's installed, works out what each needs, saves only those keys (backing the file up first, `config.json.bak.<epoch>`) and runs setup. Apps it can't place (an AppImage, a Flatpak, your own launcher entries, ones started through a wrapper) are greyed out with the reason; describe those by hand as below. After changing the file yourself, run `account-switcher setup`: it checks the file (one line per problem, naming the field: misspelt keys and leftover placeholders included), rewrites what's derived from it and the launcher entries. `account-switcher config check` only checks. Keys starting with `_` are comments. A filled-in example (every name in it is made up):
+`~/.config/account-switcher/config.json` stays on your machine. Browsers, apps and web apps are easiest in the setup window (**Choose apps…** in the badge's panel): it lists what's installed, works out what each needs, saves only those keys (backing the file up first, `config.json.bak.<epoch>`, keeping the newest five) and runs setup. Apps it can't place (an AppImage, a Flatpak, your own launcher entries, ones started through a wrapper) are greyed out with the reason; describe those by hand as below. After changing the file yourself, run `account-switcher setup`: it checks the file (one line per problem, naming the field: misspelt keys and leftover placeholders included), rewrites what's derived from it and the launcher entries. `account-switcher config check` only checks. Keys starting with `_` are comments. A filled-in example (every name in it is made up):
 
 ```json
 {

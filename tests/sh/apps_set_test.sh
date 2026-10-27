@@ -178,4 +178,18 @@ t_write_failure() {
 }
 t_test "a config that can't be written is reported, not called saved" t_write_failure
 
+t_backups_pruned() {
+  fresh
+  local d=$HOME/.config/account-switcher i
+  for i in 1000 1001 1002 1003 1004 1005 1006; do printf '{}' >"$d/config.json.bak.$i"; done
+  printf 'mine' >"$d/config.json.bak.notes"
+  "$DM" apps-set <<<"$CHOICE" >/dev/null
+  t_eq $? 0
+  t_eq "$(find "$d" -name 'config.json.bak.[0-9]*' | wc -l)" 5 "only the newest five kept"
+  t_ok test ! -e "$d/config.json.bak.1002"
+  t_ok test -e "$d/config.json.bak.1003"
+  t_ok test -e "$d/config.json.bak.notes"
+}
+t_test "saving keeps only the five newest backups of the config" t_backups_pruned
+
 t_done
