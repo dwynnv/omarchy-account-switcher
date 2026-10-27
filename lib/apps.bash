@@ -120,3 +120,71 @@ apps_list() {
                   personal: {browser: ($c.personal.browser // null), apps: ($c.personal.apps // []), webapps: ($c.personal.webapps // [])},
                   follow: ($c.webappsFollowMode // [])}}'
 }
+
+# apps-set: the window's choice ({work: {browser, apps, webapps}, personal: {…}, follow}) on stdin,
+# saved to config.json. Only the keys the window owns change; entries it described itself come
+# and go with the apps, entries written by hand stay. Nothing is written unless the result checks
+# out. Status 2: a request it can't use (named); 1: the result wouldn't check out.
+apps_set() {
+  local cfg real payload list result tmp
+  cfg=$(dm_config_path)
+  real=$(readlink -f -- "$cfg")
+  if ! payload=$(jq -ce 'select(type == "object" and (.work | type) == "object" and (.personal | type) == "object")' 2>/dev/null); then
+    echo "account-switcher apps-set: expected {work: {...}, personal: {...}, follow: [...]} on stdin" >&2
+    return 2
+  fi
+  list=$(apps_list) || return 1
+  result=$(jq -n --argjson p "$payload" --argjson l "$list" --slurpfile cfg "$real" '
+    $cfg[0] as $c
+    | ($l.entries | map({key: .key, value: .}) | from_entries) as $found
+    | def entry($kind; $k): if $kind == "browser" then ($c.customBrowsers // {})[$k] else ($c.customApps // {})[$k] end;
+      def check($kind; $k):
+        if entry($kind; $k) != null then empty
+        elif ($found[$k] | not) or $found[$k].kind != $kind then "\"\($k)\" isn'"'"'t an installed \(if $kind == "app" then "app" else $kind end)"
+        elif ($found[$k].usable | not) then "\"\($k)\" can'"'"'t be put in a mode yet: \($found[$k].reason)"
+        else empty end;
+      def check_web($n):
+        if ([$c.work.webapps, $c.personal.webapps, $c.webappsFollowMode] | map(. // []) | add | index($n)) then empty
+        elif ($found[$n] | not) or $found[$n].kind != "webapp" then "\"\($n)\" isn'"'"'t an installed web app"
+        else empty end;
+    [ ("work", "personal") as $m | $p[$m] as $x
+      | ($x.browser | select(. != null) | check("browser"; .)),
+        (($x.apps // [])[] | check("app"; .)),
+        (($x.webapps // [])[] | check_web(.)) ]
+    + [($p.follow // [])[] | check_web(.)] as $errors
+    | if ($errors | length) > 0 then {errors: $errors}
+      else
+        [$p.work.browser, $p.personal.browser | select(. != null)] as $browsers
+        | ([$p.work.apps, $p.personal.apps] | map(. // []) | add) as $apps
+        # Ours: what the scan would write for that name today. Hand-written entries are never ours.
+        | def ours($k; $e): $found[$k].def != null and $e == $found[$k].def;
+          def keep($all; $used): ($all // {}) | with_entries(select((.key as $k | $used | index($k)) or (ours(.key; .value) | not)));
+          def add_new($all; $used; $kind): reduce ($used[] | select(entry($kind; .) == null)) as $k ($all // {}; .[$k] = $found[$k].def);
+        {config: ($c
+          | (if $p.work.browser == null then del(.work.browser) else .work.browser = $p.work.browser end)
+          | (if $p.personal.browser == null then del(.personal.browser) else .personal.browser = $p.personal.browser end)
+          | .work.apps = ($p.work.apps // []) | .personal.apps = ($p.personal.apps // [])
+          | .work.webapps = ($p.work.webapps // []) | .personal.webapps = ($p.personal.webapps // [])
+          | .webappsFollowMode = ($p.follow // [])
+          | .customBrowsers = add_new(keep($c.customBrowsers; $browsers); $browsers; "browser")
+          | .customApps = add_new(keep($c.customApps; $apps); $apps; "app")
+          | if has("clockInApps") then
+              .clockInApps |= map(select(. as $n | (["browser", "chrome", "code"] | index($n)) or ($p.work.apps // [] | index($n))))
+              | if (.clockInApps | length) == 0 then del(.clockInApps) else . end
+            else . end)}
+      end') || return 1
+  if jq -e '.errors' <<<"$result" >/dev/null; then
+    jq -r '.errors[] | "account-switcher apps-set: " + .' <<<"$result" >&2
+    return 2
+  fi
+  tmp=$(mktemp "${real%/*}/.config.json.XXXXXX") || return 1
+  jq '.config' <<<"$result" >"$tmp"
+  if ! config_check "$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  cp -a -- "$real" "$real.bak.$(date +%s)" && cat "$tmp" >"$real"
+  rm -f "$tmp"
+  setup_all >/dev/null || return 1
+  echo "account-switcher: saved; setup done"
+}

@@ -842,6 +842,7 @@ case $cmd in
   desktop-apply) desktop_apply ;;
   apps-missing) apps_missing ;;
   apps-list) apps_list ;;
+  apps-set) apps_set || exit $? ;;
   desktop-check) desktop_check "$@" ;;
   browser) browser "$@" ;;
   webapp) webapp "$@" ;;
