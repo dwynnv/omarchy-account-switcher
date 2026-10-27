@@ -6,6 +6,7 @@ self=$(readlink -f "${BASH_SOURCE[0]}")
 source "${self%/bin/*}/lib/mode.bash"
 source "${self%/bin/*}/lib/config.bash"
 source "${self%/bin/*}/lib/install.bash"
+source "${self%/bin/*}/lib/apps.bash"
 
 usage() {
   echo "usage: account-switcher current|env [MODE]|resolve|switch MODE|setup|config check|path|install|uninstall [--purge]|terminal|agent|files|tmux|herdr|browser|webapp|open|mailto|zoom|app|capture|clock in|out|status|notifications-sync|notifications-check [--ping]|desktop-apply|desktop-check [--fix]" >&2
@@ -840,6 +841,7 @@ case $cmd in
   herdr) herdr_session ;;
   desktop-apply) desktop_apply ;;
   apps-missing) apps_missing ;;
+  apps-list) apps_list ;;
   desktop-check) desktop_check "$@" ;;
   browser) browser "$@" ;;
   webapp) webapp "$@" ;;
