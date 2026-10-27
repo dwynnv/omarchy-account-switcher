@@ -109,4 +109,31 @@ t_hand_written_wins() {
 }
 t_test "an app the config already describes keeps its name and description" t_hand_written_wins
 
+t_unholdable_path() {
+  fresh
+  program "$TMP/opt/My App/app"
+  entry "$TMP/sys" spaced2.desktop 'Name=Spaced Two' "Exec=\"$TMP/opt/My App/app\" %U"
+  t_eq "$(one spaced2.desktop '[.usable, .reason]')" "[false,\"its path has characters the config can't hold\"]"
+}
+t_test "a program whose path the config can't hold is greyed, with the reason" t_unholdable_path
+
+t_described_stays_movable() {
+  fresh
+  local c=$HOME/.config/account-switcher/config.json
+  jq '.customApps.envy = {"label": "Envy", "bin": "/usr/bin/envy", "class": "envy", "desktop": "envy.desktop", "execToken": "env"} | .work.apps += ["envy"]' \
+    "$c" >"$c.new" && mv "$c.new" "$c"
+  t_eq "$(one envy.desktop '[.usable, .reason, .key]')" '[true,"","envy"]'
+}
+t_test "an app the config already describes can be moved, even one the scan couldn't place" t_described_stays_movable
+
+t_many_entries() {
+  fresh
+  local i
+  for i in $(seq 1 600); do printf '[Desktop Entry]\nType=Application\nName=App %s with a fairly long name\nExec=chat --profile=%s %%U\nIcon=some-long-icon-name-%s\n' "$i" "$i" "$i" >"$TMP/sys/app$i.desktop"; done
+  t_eq "$(list | jq '.entries | length')" "$((600 + 13))"
+  "$DM" apps-set <<<"$("$DM" apps-list | jq -c '.assigned')" >/dev/null 2>"$TMP/err"
+  t_none "Argument list too long" "$TMP/err"
+}
+t_test "hundreds of installed apps are listed and saved" t_many_entries
+
 t_done

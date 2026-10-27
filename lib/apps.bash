@@ -76,10 +76,12 @@ apps_list() {
       | gsub("\\\\(?<c>.)"; .c)] | map(select(test("^%[A-Za-z]$") | not));
     map(. + {id: (.path | sub(".*/"; "")), argv: (.Exec | tokens)})')
   resolved=$(jq -r '.[] | .argv[0] // empty' <<<"$entries" | sort -u | apps_resolve)
-  jq -n --argjson entries "$entries" --argjson res "$resolved" --argjson wrappers "$APPS_WRAPPERS" \
+  # Lists this long go to jq as files: an argument is capped at 128 KiB.
+  jq -n --slurpfile entries <(printf '%s' "$entries") --slurpfile res <(printf '%s' "$resolved") \
+    --argjson wrappers "$APPS_WRAPPERS" \
     --slurpfile cfg "$cfg" --arg user "$APPS/" --arg kept "$ORIGINALS/applications/" \
     --arg omarchy "$OMARCHY_APPS/" --arg system "$SYSTEM_APPS/" '
-    $cfg[0] as $c
+    $cfg[0] as $c | $entries[0] as $entries | $res[0] as $res
     | def base: sub(".*/"; "");
       def origin: if (.path | startswith($system)) then "system"
         elif (.path | startswith($user)) or (.path | startswith($kept)) then "user"
@@ -90,6 +92,10 @@ apps_list() {
         and (.OnlyShowIn == "" or (.OnlyShowIn | split(";") | index("Hyprland")))
         and ((.NotShowIn | split(";") | index("Hyprland")) | not);
       def key_of: ascii_downcase | sub("\\.desktop$"; "") | gsub("[^a-z0-9._-]"; "-") | sub("^[^a-z0-9]+"; "");
+      # What config.jq accepts in a description (errors_custom).
+      def holdable: (.bin | test("^/[A-Za-z0-9/._+-]+$")) and (.class | test("^[A-Za-z0-9._+-]+$"))
+        and (.desktop | test("^[A-Za-z0-9._+-]+\\.desktop$")) and (.execToken | test("^[A-Za-z0-9/._+-]+$"))
+        and ((.exeDir // "/x/") | test("^/[A-Za-z0-9/._+-]+/$"));
       def described($kind; $id): ($c[if $kind == "browser" then "customBrowsers" else "customApps" end] // {})
         | to_entries | map(select(.value.desktop == $id)) | first;
     [ $entries | map(. + {origin: origin, kind: kind}) | group_by(.id)[]
@@ -111,8 +117,12 @@ apps_list() {
              elif ($wrappers | index($tok | base)) then "launched through a wrapper (flatpak, env, sh)"
              elif $r.bin == "" then "its program isn'"'"'t installed"
              elif $class == "" then "its window class can'"'"'t be worked out"
-             else "" end) as $why
-            | {usable: ($why == ""), reason: $why, key: ($own.key // ($e.id | key_of)), def: ($own.value // $def)}
+             elif ($def | holdable | not) then "its path has characters the config can'"'"'t hold"
+             else "" end) as $found_why
+            # An app the config already describes can always be moved: its description is the user'"'"'s.
+            | (if $own != null then "" else $found_why end) as $why
+            | {usable: ($why == ""), reason: $why, key: ($own.key // ($e.id | key_of)), def: ($own.value // $def),
+               scanned: $def}
           end)
     | sort_by(.name | ascii_downcase)
     | {entries: .,
@@ -136,8 +146,8 @@ apps_set() {
     return 2
   fi
   list=$(apps_list) || return 1
-  result=$(jq -n --argjson p "$payload" --argjson l "$list" --slurpfile cfg "$real" '
-    $cfg[0] as $c
+  result=$(jq -n --argjson p "$payload" --slurpfile l <(printf '%s' "$list") --slurpfile cfg "$real" '
+    $cfg[0] as $c | $l[0] as $l
     | ($l.entries | map({key: .key, value: .}) | from_entries) as $found
     | def entry($kind; $k): if $kind == "browser" then ($c.customBrowsers // {})[$k] else ($c.customApps // {})[$k] end;
       def check($kind; $k):
@@ -158,10 +168,10 @@ apps_set() {
       else
         [$p.work.browser, $p.personal.browser | select(. != null)] as $browsers
         | ([$p.work.apps, $p.personal.apps] | map(. // []) | add) as $apps
-        # Ours: what the scan would write for that name today. Hand-written entries are never ours.
-        | def ours($k; $e): $found[$k].def != null and $e == $found[$k].def;
+        # Ours: exactly what the scan would write for that name today. Hand-written entries differ.
+        | def ours($k; $e): $found[$k].scanned != null and $e == $found[$k].scanned;
           def keep($all; $used): ($all // {}) | with_entries(select((.key as $k | $used | index($k)) or (ours(.key; .value) | not)));
-          def add_new($all; $used; $kind): reduce ($used[] | select(entry($kind; .) == null)) as $k ($all // {}; .[$k] = $found[$k].def);
+          def add_new($all; $used; $kind): reduce ($used[] | select(entry($kind; .) == null)) as $k ($all // {}; .[$k] = $found[$k].scanned);
         {config: ($c
           | (if $p.work.browser == null then del(.work.browser) else .work.browser = $p.work.browser end)
           | (if $p.personal.browser == null then del(.personal.browser) else .personal.browser = $p.personal.browser end)
@@ -185,7 +195,11 @@ apps_set() {
     rm -f "$tmp"
     return 1
   fi
-  cp -a -- "$real" "$real.bak.$(date +%s)" && cat "$tmp" >"$real"
+  if ! { cp -a -- "$real" "$real.bak.$(date +%s)" && cat "$tmp" >"$real"; } 2>/dev/null; then
+    rm -f "$tmp"
+    echo "account-switcher apps-set: couldn't write $real" >&2
+    return 1
+  fi
   rm -f "$tmp"
   setup_all >/dev/null || return 1
   echo "account-switcher: saved; setup done"

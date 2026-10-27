@@ -149,4 +149,33 @@ t_argument() {
 }
 t_test "the choice can come as an argument instead of on stdin" t_argument
 
+t_hand_written_survives_moving_out() {
+  fresh
+  jq '.customApps.chat = {"label": "My Chat", "bin": "/usr/bin/chat", "class": "chat", "desktop": "chat.desktop", "execToken": "chat", "focusExisting": true}
+    | .customBrowsers["browser-a"] = {"label": "Tuned A", "bin": "/usr/bin/browser-a", "exeDir": "/opt/tuned/", "class": "browser-a", "desktop": "browser-a.desktop", "execToken": "browser-a", "notify": ["A", "A2"]}' \
+    "$(CFG)" >"$TMP/c" && cat "$TMP/c" >"$(CFG)"
+  local app browser
+  app=$(jq -c '.customApps.chat' "$(CFG)") browser=$(jq -c '.customBrowsers["browser-a"]' "$(CFG)")
+  "$DM" apps-set <<<"$CHOICE" >/dev/null
+  "$DM" apps-set <<<"$(jq -c '.work.apps = [] | .work.browser = null' <<<"$CHOICE")" >/dev/null
+  t_eq $? 0
+  t_eq "$(jq -c '.customApps.chat' "$(CFG)")" "$app" "hand-written app kept after moving it out"
+  t_eq "$(jq -c '.customBrowsers["browser-a"]' "$(CFG)")" "$browser" "hand-written browser kept after unsetting it"
+}
+t_test "entries written by hand survive their app moving out of every mode" t_hand_written_survives_moving_out
+
+t_write_failure() {
+  fresh
+  local out
+  chmod 400 "$(CFG)"
+  out=$("$DM" apps-set <<<"$CHOICE" 2>&1)
+  t_eq $? 1
+  t_ok grep -qF "couldn't write" <<<"$out"
+  t_none "saved" <<<"$out"
+  chmod 600 "$(CFG)"
+  t_eq "$(jq -c '.work.apps' "$(CFG)")" '["slack"]'
+  t_eq "$(find "$HOME/.config/account-switcher" -name '.config.json.*' | wc -l)" 0 "no temp file left"
+}
+t_test "a config that can't be written is reported, not called saved" t_write_failure
+
 t_done
