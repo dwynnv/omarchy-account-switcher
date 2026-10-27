@@ -35,7 +35,7 @@ dm_load_config() {
   declare -gA DM_APP_MODE=() DM_APP_BIN=() DM_APP_CLASS=() DM_APP_DESKTOP=() DM_APP_EXEC=() DM_APP_FOCUS=() \
     DM_WEBAPP_MODE=() DM_OWNER_EMAIL=() DM_OWNER_LOGIN=() DM_EMAIL_MODE=()
   declare -ga DM_ROUTE_BROWSERS=() DM_ACCOUNTS=()
-  DM_OWN_EMAILS=' ' DM_CLOCK_APPS='' DM_MAILTO=gmail DM_GH=''
+  DM_OWN_EMAILS=' ' DM_CLOCK_APPS='' DM_MAILTO=none DM_GH=''
   local file=${XDG_STATE_HOME:-$HOME/.local/state}/account-switcher/config.bash
   # shellcheck source=/dev/null
   [[ -r $file ]] && source "$file"

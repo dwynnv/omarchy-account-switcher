@@ -3,7 +3,7 @@
     "git": { "name": "Your Name", "email": "you@work.example" },
     "github": "your-work-login",
     "githubOwners": [],
-    "browser": "google-chrome",
+    "browser": "your-work-browser",
     "apps": [],
     "webapps": [],
     "folders": {
@@ -19,16 +19,15 @@
     "git": { "name": "Your Name", "email": "you@home.example" },
     "github": "your-login",
     "githubOwners": [],
-    "browser": "chromium",
+    "browser": "your-personal-browser",
     "apps": [],
-    "webapps": ["WhatsApp", "Google Messages", "Google Photos", "X"],
+    "webapps": [],
     "folders": { "home": "~", "agent": "~/Projects" }
   },
   "accounts": [],
-  "webappsFollowMode": ["YouTube", "Google Maps"],
+  "webappsFollowMode": [],
   "holdApps": [],
-  "clockInApps": ["browser", "code"],
-  "mailto": "gmail",
+  "mailto": "none",
   "customBrowsers": {},
   "customApps": {}
 }

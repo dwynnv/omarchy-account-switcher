@@ -89,7 +89,7 @@ herdr_session() {
 browser_exe() { local v=DM_BROWSER_BIN_${1:-}; printf '%s\n' "${!v-}"; }
 browser_class() { local v=DM_BROWSER_CLASS_${1:-}; printf '%s\n' "${!v-}"; }
 
-# A token from the catalog or config (letters, digits, / . _ + -) as a literal in a sed regex,
+# A token from the config (letters, digits, / . _ + -) as a literal in a sed regex,
 # basic, or extended with -E.
 re_literal() {
   local t=${1//./\\.}
@@ -226,7 +226,7 @@ zoom() {
 
 # app ID [ARG…]: a home-mode app (config.json "apps") takes the desk to its mode first, then
 # starts with that mode's environment. Most apps hand a second start to the running copy; one
-# marked focusExisting (FileZilla) has its existing window focused instead.
+# marked focusExisting has its existing window focused instead.
 app() {
   local name=${1:-} exe addr
   shift || true
@@ -254,7 +254,7 @@ clock_apps() {
   tr ', ' '\n\n' <<<"$apps" | awk 'NF { print ($0 == "chrome" ? "browser" : $0) }'
 }
 
-# An app counts by its process (Slack lives in the tray), the browser by a window, and the
+# An app counts by its process (chat apps often live in the tray), the browser by a window, and the
 # Work VS Code by the pid it writes to its data dir's code.lock. Unknown names count as running.
 clock_app_running() {
   local pid=
@@ -658,7 +658,7 @@ ENTRY
   done < <(printf '%s\n' "${!DM_WEBAPP_MODE[@]}" | sort)
   override "$OMARCHY_APPS/Zoom.desktop" "$APPS/Zoom.desktop" \
     -e "s|^Exec=omarchy-webapp-handler-zoom |Exec=$BIN/account-switcher zoom |"
-  # A browser's own entry (its launcher icon) opens it in its mode (catalog routeDesktop).
+  # A browser's own entry (its launcher icon) opens it in its mode (its routeDesktop).
   for entry in "${DM_ROUTE_BROWSERS[@]}"; do
     read -r mode desktop token <<<"$entry"
     token=$(re_literal "$token")

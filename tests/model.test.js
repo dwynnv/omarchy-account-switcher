@@ -267,12 +267,12 @@ test("panel: settings and the commands that change them", () => {
     ["Clock-in reminder", "not set"],
     ["Clock-out reminder", "not set"],
     ["Reminder days", "mon-fri"],
-    ["Clock-in apps", "Work apps, browser, code"],
+    ["Clock-in apps", "Work apps, browser"],
     ["Personal wallpaper", "default"],
     ["Personal colour", "#FFB000"],
   ])
   eq(rows[0].command, "omarchy bar set account-switcher clockInAt 09:00")
-  eq(rows[3].command, "omarchy bar set account-switcher clockInApps slack,browser,code")
+  eq(rows[3].command, "omarchy bar set account-switcher clockInApps browser,code")
   eq(rows[5].command, "omarchy bar set account-switcher personalColor '#FFB000'")
   const set = M.settingsRows({ clockInAt: "9:00", clockOutAt: "25:00", clockDays: ["sat", "sun"],
     clockInApps: ["slack", "code"], personalWallpaper: "~/Pictures/p.jpg", personalColor: "#FF6600" })

@@ -1,10 +1,17 @@
 {
   "work": {
-    "git": { "name": "Alex Example", "email": "alex@work.example" },
+    "git": {
+      "name": "Alex Example",
+      "email": "alex@work.example"
+    },
     "github": "alex-work",
-    "githubOwners": ["work-org"],
+    "githubOwners": [
+      "work-org"
+    ],
     "browser": "google-chrome",
-    "apps": ["slack"],
+    "apps": [
+      "slack"
+    ],
     "webapps": [],
     "folders": {
       "home": "~/Work",
@@ -16,21 +23,135 @@
     }
   },
   "personal": {
-    "git": { "name": "alex", "email": "alex@home.example" },
+    "git": {
+      "name": "alex",
+      "email": "alex@home.example"
+    },
     "github": "alex",
     "githubOwners": [],
     "browser": "chromium",
-    "apps": ["steam"],
-    "webapps": ["WhatsApp", "Google Messages", "Google Photos", "X"],
-    "folders": { "home": "~", "agent": "~/Projects" }
+    "apps": [
+      "steam"
+    ],
+    "webapps": [
+      "WhatsApp",
+      "Google Messages",
+      "Google Photos",
+      "X"
+    ],
+    "folders": {
+      "home": "~",
+      "agent": "~/Projects"
+    }
   },
   "accounts": [
-    { "owner": "side-org", "mode": "personal", "github": "alex-side", "email": "alex@side.example", "folder": "~/Side" }
+    {
+      "owner": "side-org",
+      "mode": "personal",
+      "github": "alex-side",
+      "email": "alex@side.example",
+      "folder": "~/Side"
+    }
   ],
-  "webappsFollowMode": ["YouTube", "Google Maps"],
+  "webappsFollowMode": [
+    "YouTube",
+    "Google Maps"
+  ],
   "holdApps": [],
-  "clockInApps": ["slack", "browser", "code"],
+  "clockInApps": [
+    "slack",
+    "browser",
+    "code"
+  ],
   "mailto": "gmail",
-  "customBrowsers": {},
-  "customApps": {}
+  "customBrowsers": {
+    "google-chrome": {
+      "label": "Google Chrome",
+      "bin": "/usr/bin/google-chrome-stable",
+      "exeDir": "/opt/google/chrome/",
+      "class": "google-chrome",
+      "desktop": "google-chrome.desktop",
+      "execToken": "/usr/bin/google-chrome-stable",
+      "routeDesktop": false,
+      "notify": [
+        "Google Chrome"
+      ],
+      "notifyEntries": [
+        "google-chrome"
+      ]
+    },
+    "chromium": {
+      "label": "Chromium",
+      "bin": "/usr/bin/chromium",
+      "exeDir": "/usr/lib/chromium/",
+      "class": "chromium",
+      "desktop": "chromium.desktop",
+      "execToken": "chromium",
+      "routeDesktop": true,
+      "notify": [
+        "Chromium"
+      ],
+      "notifyEntries": [
+        "chromium"
+      ]
+    }
+  },
+  "customApps": {
+    "slack": {
+      "label": "Slack",
+      "bin": "/usr/bin/slack",
+      "class": "slack",
+      "desktop": "slack.desktop",
+      "execToken": "/usr/bin/slack",
+      "notify": [
+        "Slack"
+      ],
+      "notifyEntries": [
+        "slack"
+      ]
+    },
+    "filezilla": {
+      "label": "FileZilla",
+      "bin": "/usr/bin/filezilla",
+      "class": "filezilla",
+      "desktop": "filezilla.desktop",
+      "execToken": "filezilla",
+      "focusExisting": true,
+      "notify": [
+        "FileZilla"
+      ],
+      "notifyEntries": [
+        "filezilla"
+      ]
+    },
+    "steam": {
+      "label": "Steam",
+      "bin": "/usr/bin/steam",
+      "class": "steam",
+      "desktop": "steam.desktop",
+      "execToken": "/usr/bin/steam",
+      "classPrefixes": [
+        "steam_app_"
+      ],
+      "notify": [
+        "Steam"
+      ],
+      "notifyEntries": [
+        "steam"
+      ]
+    },
+    "clickup": {
+      "label": "ClickUp",
+      "bin": "/usr/bin/clickup",
+      "class": "clickup",
+      "desktop": "ClickUp.desktop",
+      "execToken": "/usr/bin/clickup",
+      "notify": [
+        "ClickUp"
+      ],
+      "notifyEntries": [
+        "clickup"
+      ]
+    }
+  }
 }

@@ -68,6 +68,94 @@
     "clickup"
   ],
   "mailto": "gmail",
-  "customBrowsers": {},
-  "customApps": {}
+  "customBrowsers": {
+    "google-chrome": {
+      "label": "Google Chrome",
+      "bin": "/usr/bin/google-chrome-stable",
+      "exeDir": "/opt/google/chrome/",
+      "class": "google-chrome",
+      "desktop": "google-chrome.desktop",
+      "execToken": "/usr/bin/google-chrome-stable",
+      "routeDesktop": false,
+      "notify": [
+        "Google Chrome"
+      ],
+      "notifyEntries": [
+        "google-chrome"
+      ]
+    },
+    "chromium": {
+      "label": "Chromium",
+      "bin": "/usr/bin/chromium",
+      "exeDir": "/usr/lib/chromium/",
+      "class": "chromium",
+      "desktop": "chromium.desktop",
+      "execToken": "chromium",
+      "routeDesktop": true,
+      "notify": [
+        "Chromium"
+      ],
+      "notifyEntries": [
+        "chromium"
+      ]
+    }
+  },
+  "customApps": {
+    "slack": {
+      "label": "Slack",
+      "bin": "/usr/bin/slack",
+      "class": "slack",
+      "desktop": "slack.desktop",
+      "execToken": "/usr/bin/slack",
+      "notify": [
+        "Slack"
+      ],
+      "notifyEntries": [
+        "slack"
+      ]
+    },
+    "filezilla": {
+      "label": "FileZilla",
+      "bin": "/usr/bin/filezilla",
+      "class": "filezilla",
+      "desktop": "filezilla.desktop",
+      "execToken": "filezilla",
+      "focusExisting": true,
+      "notify": [
+        "FileZilla"
+      ],
+      "notifyEntries": [
+        "filezilla"
+      ]
+    },
+    "steam": {
+      "label": "Steam",
+      "bin": "/usr/bin/steam",
+      "class": "steam",
+      "desktop": "steam.desktop",
+      "execToken": "/usr/bin/steam",
+      "classPrefixes": [
+        "steam_app_"
+      ],
+      "notify": [
+        "Steam"
+      ],
+      "notifyEntries": [
+        "steam"
+      ]
+    },
+    "clickup": {
+      "label": "ClickUp",
+      "bin": "/usr/bin/clickup",
+      "class": "clickup",
+      "desktop": "ClickUp.desktop",
+      "execToken": "/usr/bin/clickup",
+      "notify": [
+        "ClickUp"
+      ],
+      "notifyEntries": [
+        "clickup"
+      ]
+    }
+  }
 }

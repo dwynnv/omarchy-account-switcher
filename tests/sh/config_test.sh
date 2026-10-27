@@ -256,7 +256,7 @@ t_custom() {
   t_eq "${DM_APP_CLASS[foo]}" foo
   t_eq "$DM_BROWSER_BIN_personal" /usr/bin/brave
   t_eq "${DM_ROUTE_BROWSERS[*]}" "personal brave-browser.desktop brave"
-  t_eq "$DM_CLOCK_APPS" "slack foo browser code"
+  t_eq "$DM_CLOCK_APPS" "slack foo browser"
   t_eq "$(jq -c '.names' "$(STATE)/hold.json")" '["slack","foo","google chrome"]'
 }
 t_test "custom browsers and apps from the config work like built-in ones" t_custom
@@ -268,6 +268,42 @@ t_lua_fixture() {
   t_eq "$(cat "$(STATE)/apps")" "$(cat "$PLUGIN/tests/fixtures/apps")"
 }
 t_test "the Lua tests' rules are what setup writes for the full test config" t_lua_fixture
+
+t_nothing_built_in() {
+  fresh
+  edit 'del(.customBrowsers, .customApps)'
+  local out
+  out=$("$DM" config check 2>&1) && t_eq ok refused "browsers and apps the config doesn't describe"
+  t_ok grep -qF 'work.browser: unknown browser "google-chrome" (describe it in customBrowsers)' <<<"$out"
+  t_ok grep -qF 'work.apps: unknown app "slack" (describe it in customApps)' <<<"$out"
+  t_ok test ! -e "$PLUGIN/catalog.json"
+}
+t_test "nothing is built in: every browser and app comes from the config" t_nothing_built_in
+
+t_neutral_defaults() {
+  fresh
+  edit 'del(.mailto, .clockInApps)'
+  "$DM" setup >/dev/null
+  t_eq $? 0
+  source "$(STATE)/config.bash"
+  t_eq "$DM_MAILTO" none
+  t_eq "$DM_CLOCK_APPS" "slack browser"
+}
+t_test "unset, mailto leaves the mail handler alone and clock in starts the Work apps and browser" t_neutral_defaults
+
+t_example_names_nothing() {
+  fresh
+  local ex=$PLUGIN/config.example.json out
+  t_eq "$(jq -c '[.customBrowsers, .customApps, .accounts, .holdApps, .webappsFollowMode, .work.apps, .work.webapps, .personal.apps, .personal.webapps]' "$ex")" '[{},{},[],[],[],[],[],[],[]]'
+  t_eq "$(jq -r '.mailto' "$ex")" none
+  t_eq "$(jq -r 'has("clockInApps")' "$ex")" false
+  cp "$ex" "$(CFG)"
+  out=$("$DM" config check 2>&1)
+  t_ok grep -qF "work.browser: still the example's; describe your browser in customBrowsers and name it here" <<<"$out"
+  t_ok grep -qF "personal.browser: still the example's; describe your browser in customBrowsers and name it here" <<<"$out"
+  t_ok test "$(grep -c 'unknown browser' <<<"$out")" = 0
+}
+t_test "the example names no browser, app, web app or mail service of anyone's" t_example_names_nothing
 
 t_idempotent() {
   fresh

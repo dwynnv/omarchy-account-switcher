@@ -378,7 +378,7 @@ var SETTING_ROWS = [
   { key: "clockInAt", label: "Clock-in reminder", unset: "not set", example: "09:00", time: true },
   { key: "clockOutAt", label: "Clock-out reminder", unset: "not set", example: "18:00", time: true },
   { key: "clockDays", label: "Reminder days", unset: "mon-fri", example: "mon-fri" },
-  { key: "clockInApps", label: "Clock-in apps", unset: "Work apps, browser, code", example: "slack,browser,code" },
+  { key: "clockInApps", label: "Clock-in apps", unset: "Work apps, browser", example: "browser,code" },
   { key: "personalWallpaper", label: "Personal wallpaper", unset: "default", example: "~/Pictures/a.jpg" },
   // Quoted: an unquoted # starts a shell comment.
   { key: "personalColor", label: "Personal colour", unset: PERSONAL_COLOR, example: "'" + PERSONAL_COLOR + "'", colour: true },

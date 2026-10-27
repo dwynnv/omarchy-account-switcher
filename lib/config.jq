@@ -1,13 +1,20 @@
-# account-switcher: checks config.json against catalog.json and derives what each side reads
-# (lib/config.bash runs it). Arguments: --arg what errors|derive, --slurpfile cfg CONFIG,
-# --slurpfile cat CATALOG, --arg home, --arg data (the data folder), --arg gh (gh's path or
+# account-switcher: checks config.json and derives what each side reads (lib/config.bash runs
+# it). Nothing is built in: every browser and app is described in the config. Arguments:
+# --arg what errors|derive, --slurpfile cfg CONFIG, --arg home, --arg data (the data folder), --arg gh (gh's path or
 # ""), --arg cfgpath (the config path shown in generated files).
 
 def modes: ["work", "personal"];
 def cfg: $cfg[0];
 def objectish: if type == "object" then . else {} end;
-def browsers: ($cat[0].browsers // {}) + (cfg.customBrowsers // {} | objectish);
-def apps: ($cat[0].apps // {}) + (cfg.customApps // {} | objectish);
+def browsers: cfg.customBrowsers // {} | objectish;
+def apps: cfg.customApps // {} | objectish;
+# What an unknown name gets told: the names it could have been, and where to describe it.
+def known($all; $key): if ($all | length) == 0 then "describe it in \($key)"
+  else "known: \($all | keys | join(", ")); or describe it in \($key)" end;
+
+# The example's placeholders, so an unedited copy is never applied as someone's identity.
+def placeholder: . == "Your Name" or . == "you@work.example" or . == "you@home.example"
+  or . == "your-work-login" or . == "your-login" or . == "your-work-browser" or . == "your-personal-browser";
 
 def is_text: type == "string" and length > 0;
 def matches($re): if type == "string" then test($re) else false end;
@@ -53,7 +60,8 @@ def errors_mode($m):
       (if ($c.git | type) == "object" then ($c.git | unknown_keys("\($m).git."; ["name", "email"])) else empty end),
       (if ($c.folders | type) == "object" then ($c.folders | unknown_keys("\($m).folders."; FOLDER_KEYS)) else empty end),
       (if ($c.browser | type) != "string" then "\($m).browser: missing"
-       elif (browsers | has($c.browser)) | not then "\($m).browser: unknown browser \"\($c.browser)\" (known: \(browsers | keys | join(", ")))"
+       elif $c.browser | placeholder then empty
+       elif (browsers | has($c.browser)) | not then "\($m).browser: unknown browser \"\($c.browser)\" (\(known(browsers; "customBrowsers")))"
        else empty end),
       (if $c | has("git") then
          if ($c.git | type) != "object" then "\($m).git: must be an object with name and email"
@@ -68,7 +76,7 @@ def errors_mode($m):
       (if $c | has("apps") then
          if ($c.apps | strs) | not then "\($m).apps: must be a list of app names"
          else ($c.apps[] | select(. as $a | (apps | has($a)) | not)
-           | "\($m).apps: unknown app \"\(.)\" (known: \(apps | keys | join(", ")))")
+           | "\($m).apps: unknown app \"\(.)\" (\(known(apps; "customApps")))")
          end
        else empty end),
       opt($c; "webapps"; ($c.webapps | type) == "array" and all($c.webapps[]; is_name);
@@ -127,9 +135,6 @@ def errors_top:
      desktop: "^[A-Za-z0-9._+-]+\\.desktop$", execToken: "^[A-Za-z0-9/._+-]+$"};
     ["classPrefixes", "notify", "notifyEntries"]; ["focusExisting"]);
 
-# The example's placeholders, so an unedited copy is never applied as someone's identity.
-def placeholder: . == "Your Name" or . == "you@work.example" or . == "you@home.example"
-  or . == "your-work-login" or . == "your-login";
 def errors_example($m):
   cfg[$m] as $c
   | if ($c | type) != "object" then empty
@@ -138,7 +143,9 @@ def errors_example($m):
          ($c.git.name | select(type == "string" and placeholder) | "\($m).git.name: still the example's; put your own"),
          ($c.git.email | select(type == "string" and placeholder) | "\($m).git.email: still the example's; put your own")
        else empty end),
-      ($c.github | select(type == "string" and placeholder) | "\($m).github: still the example's; put your own")
+      ($c.github | select(type == "string" and placeholder) | "\($m).github: still the example's; put your own"),
+      ($c.browser | select(type == "string" and placeholder)
+        | "\($m).browser: still the example's; describe your browser in customBrowsers and name it here")
     end;
 
 def errors:
@@ -179,7 +186,7 @@ def emails:
   [ (modes[] as $m | cfg[$m].git.email // empty | {email: ascii_downcase, mode: $m}),
     ((cfg.accounts // [])[] | {email: (.email | ascii_downcase), mode: .mode}) ];
 def clock_apps:
-  (cfg.clockInApps // ((cfg.work.apps // []) + ["browser", "code"])) | map(if . == "chrome" then "browser" else . end);
+  (cfg.clockInApps // ((cfg.work.apps // []) + ["browser"])) | map(if . == "chrome" then "browser" else . end);
 
 def sh_var($name; $v): "\($name)=\($v | tostring | @sh)";
 def sh_assoc($name; $pairs): "declare -gA \($name)=(" + ([$pairs[] | "[\(.key | @sh)]=\(.value | tostring | @sh)"] | join(" ")) + ")";
@@ -216,7 +223,7 @@ def bash_text:
     sh_assoc("DM_EMAIL_MODE"; [emails[] | {key: .email, value: .mode}]),
     sh_var("DM_OWN_EMAILS"; " " + ([emails[].email] | uniq | join(" ")) + " "),
     sh_var("DM_CLOCK_APPS"; clock_apps | join(" ")),
-    sh_var("DM_MAILTO"; cfg.mailto // "gmail"),
+    sh_var("DM_MAILTO"; cfg.mailto // "none"),
     sh_var("DM_GH"; $gh) ]
   | join("\n") + "\n";
 

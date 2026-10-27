@@ -21,7 +21,7 @@ Work and Personal on one machine, each a whole desk: its own workspaces, account
 - **A badge** on the bar in place of Omarchy's workspace buttons: `◆ WORK` in the theme accent or `● PERSONAL` in amber (or your colour), the mode's workspaces, a count of what waits for you, and `◉` while you share your screen. Personal gets its own border colour and wallpaper. Windows keep their mode's border colour wherever they are.
 - **Each mode's accounts.** Terminals, agents and VS Code opened in a mode keep that mode's git identity, GitHub (`gh`) account, shell history, `z` jumps and tmux/herdr servers, even after you switch. Personal sees empty AWS files. A commit made under the wrong address for the repo's owner is refused (one through on purpose: `git -c hook.account-switcher-guard.enabled=false commit …`).
 - **A browser per mode** (two different browsers, so their windows and notifications can be told apart). Links open in the browser of the mode of whatever opened them, switching you there when you opened them yourself; a link from a program in the background opens without pulling the desk across.
-- **Home apps**: apps that live in one mode (Slack in Work, Steam in Personal, …) take you to their mode when you open them, and their windows never open in the other one.
+- **Home apps**: apps that live in one mode (a work chat app, a game launcher, …) take you to their mode when you open them, and their windows never open in the other one.
 - **Clicks across modes** (the dock, the bar, notification clicks, launch-or-focus): focusing a window of the other mode switches you there, unless it's an app with no accounts (it comes over to you) or the same app is open in your mode. A toast from a terminal or an agent takes you to its window, in either mode.
 - **Apps can't pull you across by themselves**: a window of the other mode asking for attention waits as an alert on the badge.
 - **Clock in / clock out** (the panel, or reminder toasts at times you set): Work and your work apps, each back where it last was; or Personal. Your own steps can run with them ([clock hooks](#clock-hooks)).
@@ -33,7 +33,7 @@ Work and Personal on one machine, each a whole desk: its own workspaces, account
 ## Requirements
 
 - Omarchy 4 with the Lua Hyprland config (`~/.config/hypr/hyprland.lua`, Hyprland 0.56), Ghostty, jq.
-- Two Chromium-family browsers. Google Chrome and Chromium are built in; others can be added in the config.
+- Two different Chromium-family browsers, described in the config.
 - Optional: `gh` (a GitHub account per mode), VS Code (a profile per mode), tmux, herdr.
 
 Tested on Omarchy 4.0 with Hyprland 0.56.
@@ -55,7 +55,7 @@ Install backs up each file before its first change (`<file>.bak.<epoch>`) and do
 - gives each mode's terminals their own global git file, `~/.config/git/account-switcher-work` and `account-switcher-personal`: made once, it reads your `~/.config/git/config` and `~/.gitconfig`, then the mode's identity (`account-switcher-work.inc`, `account-switcher-personal.inc`, one per extra account; setup keeps these up to date). `git config --global` in a mode terminal writes to that mode's file and stays there. Adds the commit guard to `~/.config/git/config`;
 - adds two lines to `~/.bashrc`, around Omarchy's rc line;
 - makes xdph's share picker the switcher's (it hands the current mode's windows to the picker you had);
-- writes launcher entries to `~/.local/share/applications` (marked `X-AccountSwitcher=managed`), links its commands into `~/.local/bin`, and sends `mailto:` links to Gmail compose. Anything of yours it replaces there under the same name (a command, a launcher entry, the mail handler) is kept and comes back when you uninstall;
+- writes launcher entries to `~/.local/share/applications` (marked `X-AccountSwitcher=managed`), links its commands into `~/.local/bin` and, with `"mailto": "gmail"`, sends `mailto:` links to Gmail compose. Anything of yours it replaces there under the same name (a command, a launcher entry, the mail handler) is kept and comes back when you uninstall;
 - puts the badge on the bar in place of Omarchy's workspace buttons;
 - builds `account-switcher.notifications`, a copy of Omarchy's notification plugin with "Work waits for you", and turns it on.
 
@@ -78,7 +78,7 @@ omarchy restart shell
 
 ## Config
 
-`~/.config/account-switcher/config.json` stays on your machine. After changing it, run `account-switcher setup`: it checks the file (one line per problem, naming the field: misspelt keys and leftover placeholders included), rewrites what's derived from it and the launcher entries. `account-switcher config check` only checks. Keys starting with `_` are comments. A filled-in example:
+`~/.config/account-switcher/config.json` stays on your machine. After changing it, run `account-switcher setup`: it checks the file (one line per problem, naming the field: misspelt keys and leftover placeholders included), rewrites what's derived from it and the launcher entries. `account-switcher config check` only checks. Keys starting with `_` are comments. A filled-in example (every name in it is made up):
 
 ```json
 {
@@ -86,8 +86,8 @@ omarchy restart shell
     "git": { "name": "Alex Example", "email": "alex@work.example" },
     "github": "alex-work",
     "githubOwners": ["work-org"],
-    "browser": "google-chrome",
-    "apps": ["slack"],
+    "browser": "browser-a",
+    "apps": ["chat"],
     "webapps": [],
     "folders": {
       "home": "~/Work", "agent": "~/Work", "files": "~/Work",
@@ -98,20 +98,36 @@ omarchy restart shell
     "git": { "name": "alex", "email": "alex@home.example" },
     "github": "alex",
     "githubOwners": [],
-    "browser": "chromium",
-    "apps": ["steam"],
-    "webapps": ["WhatsApp", "Google Messages", "Google Photos", "X"],
+    "browser": "browser-b",
+    "apps": [],
+    "webapps": ["A Web App"],
     "folders": { "home": "~", "agent": "~/Projects" }
   },
   "accounts": [
     { "owner": "side-org", "mode": "personal", "github": "alex-side", "email": "alex@side.example", "folder": "~/Side" }
   ],
-  "webappsFollowMode": ["YouTube", "Google Maps"],
+  "webappsFollowMode": [],
   "holdApps": [],
-  "clockInApps": ["slack", "browser", "code"],
-  "mailto": "gmail",
-  "customBrowsers": {},
-  "customApps": {}
+  "clockInApps": ["chat", "browser"],
+  "mailto": "none",
+  "customBrowsers": {
+    "browser-a": {
+      "label": "Browser A", "bin": "/usr/bin/browser-a", "exeDir": "/opt/browser-a/", "class": "browser-a",
+      "desktop": "browser-a.desktop", "execToken": "/usr/bin/browser-a", "routeDesktop": false,
+      "notify": ["Browser A"], "notifyEntries": ["browser-a"]
+    },
+    "browser-b": {
+      "label": "Browser B", "bin": "/usr/bin/browser-b", "exeDir": "/usr/lib/browser-b/", "class": "browser-b",
+      "desktop": "browser-b.desktop", "execToken": "browser-b", "routeDesktop": true,
+      "notify": ["Browser B"], "notifyEntries": ["browser-b"]
+    }
+  },
+  "customApps": {
+    "chat": {
+      "label": "Chat", "bin": "/usr/bin/chat", "class": "chat", "desktop": "chat.desktop",
+      "execToken": "/usr/bin/chat", "notify": ["Chat"], "notifyEntries": ["chat"]
+    }
+  }
 }
 ```
 
@@ -121,36 +137,20 @@ omarchy restart shell
 | `.git.name`, `.git.email` | The mode's commit identity. |
 | `.github` | The mode's `gh` account (and git's credentials for github.com). |
 | `.githubOwners` | More GitHub owners whose repos commit with this mode's address (an organisation, say). |
-| `.browser` | `google-chrome`, `chromium`, or a name from `customBrowsers`. |
-| `.apps` | Apps that live in this mode: `slack`, `filezilla`, `steam`, `clickup`, or names from `customApps`. An app can be in one mode only. |
+| `.browser` | A name from `customBrowsers`. |
+| `.apps` | Apps that live in this mode, by their names in `customApps`. An app can be in one mode only. |
 | `.webapps` | Web apps that always open in this mode, by launcher name: Omarchy's, or ones you made with Omarchy's web-app installer. |
 | `.folders` | `home`: where terminals start (default `~`); `agent` and `files` (default: `home`); `screenshots`, `recordings` (default: Omarchy's); `downloads` (made for you; point your browser there). `~`, `~/…`, absolute, or relative to `~`. |
 | `accounts` | GitHub owners with an account and address of their own, in one mode: `gh` and git push use that account in their repos, and repos under `folder` commit with that address. |
 | `webappsFollowMode` | Web apps that open in whichever mode you're in. Ones listed nowhere keep Omarchy's launcher. |
 | `holdApps` | More app names whose notifications wait in Personal, beyond the Work apps and browser (a VPN client's, say). |
-| `clockInApps` | What clock in starts when it isn't running: `browser` (Work's), `code`, and Work apps. Default: the Work apps, `browser`, `code`. |
-| `mailto` | `gmail` (Gmail compose in the right mode's browser) or `none` (the mail handler you had stays). |
-| `customBrowsers`, `customApps` | Entries like the built-in ones, below. |
+| `clockInApps` | What clock in starts when it isn't running: `browser` (Work's), `code`, and Work apps. Default: the Work apps and `browser`. |
+| `mailto` | `none` (the mail handler you had stays; the default) or `gmail` (Gmail compose in the right mode's browser). |
+| `customBrowsers`, `customApps` | Your browsers and apps, described as below. Nothing is built in. |
 
-A browser or app that isn't built in goes in the config with the same fields as `catalog.json`. For example (not tested):
+Each browser and app the config names is described in `customBrowsers` or `customApps`, as in the example. To find the values for one of yours, start it and look:
 
-```json
-"customBrowsers": {
-  "brave": {
-    "label": "Brave", "bin": "/usr/bin/brave", "exeDir": "/opt/brave-bin/", "class": "brave-browser",
-    "desktop": "brave-browser.desktop", "execToken": "brave", "routeDesktop": true,
-    "notify": ["Brave"], "notifyEntries": ["brave-browser"]
-  }
-},
-"customApps": {
-  "discord": {
-    "label": "Discord", "bin": "/usr/bin/discord", "class": "discord", "desktop": "discord.desktop",
-    "execToken": "/usr/bin/discord", "notify": ["Discord"], "notifyEntries": ["discord"]
-  }
-}
-```
-
-`exeDir` is the folder the browser's executable runs from (`readlink /proc/<pid>/exe`), `class` the window class (`hyprctl clients`), `desktop` its launcher entry in `/usr/share/applications`, `execToken` the first word of that entry's `Exec=` lines, `notify`/`notifyEntries` the app name and desktop entry its notifications carry. `routeDesktop` makes the browser's own launcher icon open it in its mode. An app with `"focusExisting": true` focuses its window instead of starting again, and `"classPrefixes"` adds window classes by prefix (Steam's games are `steam_app_…`).
+`exeDir` is the folder the browser's executable runs from (`readlink /proc/<pid>/exe`), `class` the window class (`hyprctl clients`), `desktop` its launcher entry in `/usr/share/applications`, `execToken` the first word of that entry's `Exec=` lines, `notify`/`notifyEntries` the app name and desktop entry its notifications carry. `routeDesktop` makes the browser's own launcher icon open it in its mode. An app with `"focusExisting": true` focuses its window instead of starting again, and `"classPrefixes"` adds window classes by prefix (for a launcher whose games open windows of their own, say).
 
 ## Settings
 
@@ -161,7 +161,7 @@ On the bar entry; change them with `omarchy bar set` (`''` clears one).
 | `clockInAt` | `omarchy bar set account-switcher clockInAt 09:00` | no clock-in reminder |
 | `clockOutAt` | `omarchy bar set account-switcher clockOutAt 18:00` | no clock-out reminder |
 | `clockDays` | `omarchy bar set account-switcher clockDays mon-fri` (or `sat,sun`, `fri-mon`) | Monday to Friday |
-| `clockInApps` | `omarchy bar set account-switcher clockInApps slack,browser,code` | the config's list |
+| `clockInApps` | `omarchy bar set account-switcher clockInApps browser,code` | the config's list |
 | `personalWallpaper` | `omarchy bar set account-switcher personalWallpaper ~/Pictures/a.jpg` | one of Omarchy's backgrounds, copied at setup |
 | `personalColor` | `omarchy bar set account-switcher personalColor '#FF6A00'` (quoted: `#` starts a shell comment) | amber |
 
@@ -227,7 +227,7 @@ From the bar side: `omarchy-shell account-switcher status|time|switchMode|reappl
 
 ## Files
 
-- This folder: the bar widget, panel and service (`BarWidget.qml`, `Panel.qml`, `Service.qml`, `Model.js`), the Hyprland side (`hypr/`), commands (`bin/`), `lib/` (the environment, config and installer), `catalog.json`, `config.example.json`, `notifications/`, `shell/` (the `~/.bashrc` hooks), `tests/`.
+- This folder: the bar widget, panel and service (`BarWidget.qml`, `Panel.qml`, `Service.qml`, `Model.js`), the Hyprland side (`hypr/`), commands (`bin/`), `lib/` (the environment, config and installer), `config.example.json`, `notifications/`, `shell/` (the `~/.bashrc` hooks), `tests/`.
 - `~/.config/account-switcher/config.json`: your config.
 - `~/.local/state/account-switcher/`: the mode and per-monitor memory, what setup derived from the config (`config.bash`, `apps`, `hold.json`), shell histories, clock and reminder state, time, held notifications.
 - `~/.local/share/account-switcher/`: the Personal wallpaper, token-free `gh` settings per account (tokens stay in the keyring), Personal's empty AWS files, `z` data per mode.
@@ -254,7 +254,7 @@ Lua 5.5 (Hyprland's Lua) runs the desk against a small model of Hyprland; the sh
 
 - Per-mode terminals and agents need Ghostty.
 - The workspace ranges are fixed: Work 1–10, Personal 11–20.
-- Built in: Google Chrome and Chromium; Slack, FileZilla, Steam and ClickUp. Everything else goes in the config.
+- Nothing is built in: every browser and app is described in the config.
 
 ## License
 

@@ -2,8 +2,6 @@
 # setup` derives from it (lib/config.jq does the work). Sourced by bin/account-switcher after
 # lib/mode.bash.
 
-dm_catalog_path() { printf '%s\n' "$DM_PLUGIN/catalog.json"; }
-
 # The gh that git's credential helpers run (tests set ACCOUNT_SWITCHER_GH, "" for none). A gh inside
 # a mise install sits in a versioned folder that its next update replaces: mise's shim instead.
 config_gh() {
@@ -20,9 +18,9 @@ config_gh() {
   printf '%s\n' "$gh"
 }
 
-# config_jq errors|derive FILE: run lib/config.jq over FILE and the catalog.
+# config_jq errors|derive FILE: run lib/config.jq over FILE.
 config_jq() {
-  jq -nj --arg what "$1" --slurpfile cfg "$2" --slurpfile cat "$(dm_catalog_path)" \
+  jq -nj --arg what "$1" --slurpfile cfg "$2" \
     --arg home "$HOME" --arg data "$(dm_data_dir)" --arg gh "$(config_gh)" --arg cfgpath "${2/#"$HOME"/\~}" \
     -f "$DM_PLUGIN/lib/config.jq"
 }
@@ -39,7 +37,7 @@ config_check() {
     echo "account-switcher config: config.json: not valid JSON (${out##*: })" >&2
     return 1
   fi
-  if ! out=$(jq -nr --arg what errors --slurpfile cfg "$file" --slurpfile cat "$(dm_catalog_path)" \
+  if ! out=$(jq -nr --arg what errors --slurpfile cfg "$file" \
     --arg home "$HOME" --arg data "" --arg gh "" --arg cfgpath "" -f "$DM_PLUGIN/lib/config.jq" 2>&1); then
     echo "account-switcher config: config.json: couldn't be checked (${out##*: })" >&2
     return 1

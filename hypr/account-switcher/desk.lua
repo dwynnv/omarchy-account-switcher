@@ -225,8 +225,8 @@ function D.retag_all()
   for _, w in ipairs(hl.get_windows()) do D.tag_window(w) end
 end
 
--- A home-mode app's or browser's window that opens in the other mode (a Slack call while
--- in Personal) goes to its own mode, next to its other windows, and waits there with an
+-- A home-mode app's or browser's window that opens in the other mode (a work app's call
+-- while in Personal) goes to its own mode, next to its other windows, and waits there with an
 -- alert. An agent from the bar's agents panel goes to Work and the desk follows it.
 function D.place_new(w)
   if not (w and w.address) then return end
