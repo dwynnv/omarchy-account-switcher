@@ -209,6 +209,8 @@ dm_install() {
   install_hypr && install_git && install_bash && install_picker || return 1
   desktop_apply
   install_bar && install_notifications || return 1
+  # A mode with no browser yet: the setup window, if the shell already has the plugin.
+  [[ -n $(apps_missing) ]] && dm_run omarchy-shell account-switcher.apps open >/dev/null 2>&1
   cat <<EOF
 account-switcher: installed. Next:
   1. omarchy restart shell

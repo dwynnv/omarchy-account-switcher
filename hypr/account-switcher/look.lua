@@ -51,6 +51,9 @@ function M.rules()
   -- Omarchy slows touchpad scrolling in Ghostty by its class; the per-mode terminals too.
   hl.window_rule({ name = "account-switcher-terminal-scroll", match = { class = "org\\.omarchy\\.(term|agent)-(work|personal)" },
     scroll_touchpad = 0.2 })
+  -- The setup window (`omarchy-shell account-switcher.apps open`): a dialog, not a tile.
+  hl.window_rule({ name = "account-switcher-apps-window", match = { title = "^Account Switcher – apps$" },
+    tag = "-default-opacity", opacity = "1 1", float = true, center = true, size = { 960, 680 } })
 end
 
 -- A new Personal colour ("#RRGGBB", or "" for the default): Personal's windows and, in

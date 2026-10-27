@@ -109,6 +109,7 @@ t_install() {
   t_ok test -n "$rescan" -a -n "$enable"
   t_ok test "${rescan:-99}" -lt "${enable:-0}"
   t_ok test -s "$HOME/.local/state/account-switcher/config.bash"
+  t_none "omarchy-shell account-switcher.apps open" "$LOG"
 }
 t_test "install puts every piece in place" t_install
 
@@ -357,6 +358,7 @@ t_install_without_browser() {
   out=$("$DM" install 2>&1)
   t_eq $? 0 "install with no browser chosen yet"
   t_ok grep -qF "Choose apps" <<<"$out"
+  t_ok grep -qxF "omarchy-shell account-switcher.apps open" "$ACCOUNT_SWITCHER_RUN_LOG"
 }
 t_test "install finishes before any browser is chosen, and says where to choose them" t_install_without_browser
 

@@ -121,7 +121,8 @@ apps_list() {
                   follow: ($c.webappsFollowMode // [])}}'
 }
 
-# apps-set: the window's choice ({work: {browser, apps, webapps}, personal: {…}, follow}) on stdin,
+# apps-set [JSON]: the window's choice ({work: {browser, apps, webapps}, personal: {…}, follow}),
+# as the argument or on stdin,
 # saved to config.json. Only the keys the window owns change; entries it described itself come
 # and go with the apps, entries written by hand stay. Nothing is written unless the result checks
 # out. Status 2: a request it can't use (named); 1: the result wouldn't check out.
@@ -129,7 +130,8 @@ apps_set() {
   local cfg real payload list result tmp
   cfg=$(dm_config_path)
   real=$(readlink -f -- "$cfg")
-  if ! payload=$(jq -ce 'select(type == "object" and (.work | type) == "object" and (.personal | type) == "object")' 2>/dev/null); then
+  if ! payload=$({ if (($#)); then printf '%s' "$1"; else cat; fi; } |
+    jq -ce 'select(type == "object" and (.work | type) == "object" and (.personal | type) == "object")' 2>/dev/null); then
     echo "account-switcher apps-set: expected {work: {...}, personal: {...}, follow: [...]} on stdin" >&2
     return 2
   fi

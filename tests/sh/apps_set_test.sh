@@ -141,4 +141,12 @@ t_noop() {
 }
 t_test "saving what's already there changes nothing" t_noop
 
+t_argument() {
+  fresh
+  "$DM" apps-set "$CHOICE" </dev/null >/dev/null
+  t_eq $? 0
+  t_eq "$(jq -c '.work.apps' "$(CFG)")" '["chat"]'
+}
+t_test "the choice can come as an argument instead of on stdin" t_argument
+
 t_done

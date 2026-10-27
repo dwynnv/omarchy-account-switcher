@@ -274,9 +274,17 @@ test("panel: settings and the commands that change them", () => {
   eq(rows[0].command, "omarchy bar set account-switcher clockInAt 09:00")
   eq(rows[3].command, "omarchy bar set account-switcher clockInApps browser,code")
   eq(rows[5].command, "omarchy bar set account-switcher personalColor '#FFB000'")
+  eq(rows.map((r) => r.picker === true), [false, false, false, false, true, false])
+  eq(rows[4].command, "", "the wallpaper is picked in the panel")
   const set = M.settingsRows({ clockInAt: "9:00", clockOutAt: "25:00", clockDays: ["sat", "sun"],
     clockInApps: ["slack", "code"], personalWallpaper: "~/Pictures/p.jpg", personalColor: "#FF6600" })
   eq(set.map((r) => r.value), ["9:00", "25:00 (not a time)", "sat, sun", "slack, code", "~/Pictures/p.jpg", "#FF6600"])
+})
+
+test("panel: which modes still need a browser", () => {
+  eq(M.missingBrowsersLine(["work", "personal"]), "Choose a browser for Work and Personal")
+  eq(M.missingBrowsersLine(["personal"]), "Choose a browser for Personal")
+  eq(M.missingBrowsersLine([]), "Browsers, apps and web apps for each mode")
 })
 
 test("colours and the look file", () => {

@@ -38,6 +38,7 @@ Panel {
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
   function open() {
+    if (root.service) root.service.refreshMissing()
     root.controller.show()
     Qt.callLater(function() { if (root.opened) keyCatcher.forceActiveFocus() })
   }
@@ -227,6 +228,41 @@ Panel {
             font.pixelSize: Style.font.caption
           }
 
+          // ------------------------------------------------- apps
+          PanelSeparator { width: parent.width }
+
+          Item {
+            width: parent.width
+            implicitHeight: Math.max(appsLine.implicitHeight, chooseApps.implicitHeight)
+            Text {
+              id: appsLine
+              anchors.left: parent.left
+              anchors.right: chooseApps.left
+              anchors.rightMargin: Style.space(8)
+              anchors.verticalCenter: parent.verticalCenter
+              wrapMode: Text.Wrap
+              textFormat: Text.PlainText
+              readonly property var missing: root.service ? root.service.missingBrowsers : []
+              text: Model.missingBrowsersLine(missing)
+              color: missing.length ? Commons.Color.accent : root.faint
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+            }
+            Button {
+              id: chooseApps
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
+              text: "Choose apps…"
+              bordered: true
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              onClicked: {
+                if (root.service) root.service.openApps()
+                root.close()
+              }
+            }
+          }
+
           // ------------------------------------------------- settings
           PanelSeparator { width: parent.width }
 
@@ -270,7 +306,32 @@ Panel {
                 }
               }
 
+              // The wallpaper is picked, not typed.
+              Row {
+                visible: modelData.picker
+                anchors.right: parent.right
+                spacing: Style.space(6)
+                Button {
+                  text: "Browse…"
+                  bordered: true
+                  foreground: root.foreground
+                  fontFamily: root.fontFamily
+                  onClicked: {
+                    if (root.service) root.service.browseWallpaper()
+                    root.close()
+                  }
+                }
+                Button {
+                  text: "Default"
+                  bordered: true
+                  foreground: root.foreground
+                  fontFamily: root.fontFamily
+                  onClicked: Quickshell.execDetached(["omarchy", "bar", "set", "account-switcher", "personalWallpaper", ""])
+                }
+              }
+
               Item {
+                visible: !modelData.picker
                 width: parent.width
                 implicitHeight: Math.max(commandText.implicitHeight, commandCopy.implicitHeight)
                 Text {
@@ -302,7 +363,7 @@ Panel {
           Text {
             width: parent.width
             textFormat: Text.PlainText
-            text: "Change settings with these commands (an empty value, '', clears one). Reminders need a time; a new Personal wallpaper shows at the next switch."
+            text: "Change the other settings with these commands (an empty value, '', clears one). Reminders need a time; a new Personal wallpaper shows at the next switch."
             wrapMode: Text.Wrap
             color: root.faint
             font.family: root.fontFamily

@@ -261,6 +261,15 @@ t.test("per-mode terminals keep Ghostty's touchpad scroll speed", function()
   t.ok(found, "no scroll_touchpad rule for the per-mode classes")
 end)
 
+t.test("the setup window floats, centred", function()
+  laptop("work", 1)
+  local found
+  for _, r in ipairs(H.rules) do
+    if r.match and r.match.title == "^Account Switcher – apps$" and r.float and r.center then found = r end
+  end
+  t.ok(found, "no float/center rule for the setup window")
+end)
+
 t.test("while sharing, a switch asks instead of moving", function()
   laptop("work", 1)
   desk.set_sharing(true)

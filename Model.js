@@ -379,7 +379,8 @@ var SETTING_ROWS = [
   { key: "clockOutAt", label: "Clock-out reminder", unset: "not set", example: "18:00", time: true },
   { key: "clockDays", label: "Reminder days", unset: "mon-fri", example: "mon-fri" },
   { key: "clockInApps", label: "Clock-in apps", unset: "Work apps, browser", example: "browser,code" },
-  { key: "personalWallpaper", label: "Personal wallpaper", unset: "default", example: "~/Pictures/a.jpg" },
+  // Picked in the panel (Browse… / Default), not typed.
+  { key: "personalWallpaper", label: "Personal wallpaper", unset: "default", picker: true },
   // Quoted: an unquoted # starts a shell comment.
   { key: "personalColor", label: "Personal colour", unset: PERSONAL_COLOR, example: "'" + PERSONAL_COLOR + "'", colour: true },
 ]
@@ -394,7 +395,16 @@ function settingsRows(settings) {
     if (value === "") value = row.unset
     else if (row.time && clockMinutes(value) === null) value += " (not a time)"
     else if (row.colour && validColor(value) === "") value += " (not a colour)"
-    rows.push({ label: row.label, value: value, command: "omarchy bar set account-switcher " + row.key + " " + row.example })
+    rows.push({ label: row.label, value: value, picker: row.picker === true,
+      command: row.picker ? "" : "omarchy bar set account-switcher " + row.key + " " + row.example })
   }
   return rows
+}
+
+// The panel's line next to "Choose apps…": which modes still need a browser.
+function missingBrowsersLine(missing) {
+  var m = (missing || []).filter(function (x) { return x === "work" || x === "personal" })
+  if (m.length === 2) return "Choose a browser for Work and Personal"
+  if (m.length === 1) return "Choose a browser for " + modeTitle(m[0])
+  return "Browsers, apps and web apps for each mode"
 }

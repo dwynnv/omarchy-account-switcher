@@ -402,4 +402,33 @@ Item {
     function switchMode(): void { root.switchMode() }
     function reapply(): void { root.applyWallpaper() }
   }
+
+  // The setup window (AppsWindow.qml): browsers, apps and web apps per mode, and the Personal
+  // wallpaper. Which modes still have no browser is asked again after every save.
+  property var missingBrowsers: []
+  function openApps() { appsWindow.open() }
+  function browseWallpaper() { appsWindow.browseWallpaper() }
+  function refreshMissing() { missingCheck.running = true }
+
+  AppsWindow {
+    id: appsWindow
+    service: root
+    onSaved: root.refreshMissing()
+  }
+
+  Process {
+    id: missingCheck
+    running: true
+    command: [root.home + "/.local/bin/account-switcher", "apps-missing"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.missingBrowsers = text.split("\n").filter(function (m) { return m === "work" || m === "personal" })
+    }
+  }
+
+  IpcHandler {
+    target: "account-switcher.apps"
+    function open(): void { appsWindow.open() }
+    function close(): void { appsWindow.close() }
+  }
 }
