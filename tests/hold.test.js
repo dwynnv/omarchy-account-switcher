@@ -137,7 +137,7 @@ test("a desk call names only a known function and a known class", () => {
   eq(H.deskCall("switch", "org.omarchy.term-work"), "")
 })
 
-test("toast classes are kept by file name, newest first, up to the limit", () => {
+test("toast classes keep the newest noted, up to the limit", () => {
   let classes = {}
   for (let i = 1; i <= 45; i++) classes = H.noteClass(classes, (1000 + i) + "-" + i + ".json", "org.omarchy.term-work")
   const names = Object.keys(classes)
@@ -156,6 +156,23 @@ test("toast classes are kept by file name, newest first, up to the limit", () =>
     { "6-1.json": "org.omarchy.agent" })
   eq(H.parseClasses("not json"), {})
   eq(H.parseClasses(""), {})
+})
+
+test("toast classes are kept by Omarchy 4.5 row keys in the order they were noted", () => {
+  // Row keys are "n" + base36 time + base36 seed: nothing to sort by number.
+  let classes = {}
+  for (let i = 1; i <= 45; i++) classes = H.noteClass(classes, "nmh7k2" + i.toString(36) + "x", "org.omarchy.agent")
+  const names = Object.keys(classes)
+  eq(names.length, 40)
+  eq(names[0], "nmh7k26x")
+  eq(names[39], "nmh7k219x")
+  // Noting a key again moves it to the newest end instead of dropping it next.
+  classes = H.noteClass(classes, "nmh7k26x", "org.omarchy.term-work")
+  eq(Object.keys(classes)[39], "nmh7k26x")
+  eq(classes.nmh7k26x, "org.omarchy.term-work")
+  eq(Object.keys(classes).length, 40)
+  // A key that isn't a terminal or agent class leaves what's there alone.
+  eq(H.noteClass({ na: "org.omarchy.agent" }, "na", "slack"), { na: "org.omarchy.agent" })
 })
 
 if (failed) { console.log("\n" + failed + " failed"); process.exit(1) }

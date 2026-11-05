@@ -32,18 +32,18 @@ t_sync() {
   t_eq "$(jq -r '.omarchy.clonedFrom' "$(CLONE)/manifest.json")" omarchy.notifications
   t_eq "$(jq -r '.entryPoints.service' "$(CLONE)/manifest.json")" Service.qml
   t_ok cmp -s "$PLUGIN/notifications/HoldLogic.js" "$(CLONE)/HoldLogic.js"
-  t_ok cmp -s "$TMP/src/NotificationLogic.js" "$(CLONE)/NotificationLogic.js"
-  t_ok test -f "$(CLONE)/components/NotificationCard.qml"
+  t_ok cmp -s "$TMP/src/Store.js" "$(CLONE)/Store.js"
+  t_ok test -f "$(CLONE)/Toast.qml"
   t_eq "$(count 'import "HoldLogic.js" as HoldLogic')" 1
   t_eq "$(count 'import Quickshell.Hyprland')" 1
-  t_eq "$(count 'if (service.holdIfNeeded(notification, snapshot)) return')" 1
-  t_eq "$(count '  function holdIfNeeded(notification, snapshot) {')" 1
+  t_eq "$(count 'if (service.holdIfNeeded(notification, key, row)) return')" 1
+  t_eq "$(count '  function holdIfNeeded(notification, key, row) {')" 1
   t_eq "$(count '    function heldCount(): string')" 1
   # Toast clicks: each new toast's class is noted as it arrives, and a click looks first.
-  t_eq "$(grep -A2 -xF '    var snapshot = snapshotOf(notification)' "$(CLONE)/Service.qml" | grep -cxF '    service.noteModeWindow(notification, snapshot)')" 1
-  t_eq "$(grep -A2 -xF '  function invokePopupDefault(index) {' "$(CLONE)/Service.qml" | grep -cxF '    if (service.clickModeWindow(index)) return')" 1
-  t_eq "$(count '  function clickModeWindow(index) {')" 1
-  t_eq "$(count 'service.noteToastClass(entry, HoldLogic.modeWindowClass(item.desktopEntry))')" 1
+  t_eq "$(grep -A2 -xF '    var row = Store.snapshot(notification, key, NotificationUrgency)' "$(CLONE)/Service.qml" | grep -cxF '    service.noteModeWindow(notification, row)')" 1
+  t_eq "$(grep -A2 -xF '  function activate(key, instant) {' "$(CLONE)/Service.qml" | grep -cxF '    if (service.clickModeWindow(key, instant)) return')" 1
+  t_eq "$(count '  function clickModeWindow(key, instant) {')" 1
+  t_eq "$(count 'service.noteToastClass(row, HoldLogic.modeWindowClass(item.desktopEntry))')" 1
   # Which apps are Work's comes from setup's hold.json, read live.
   t_eq "$(count 'path: service.holdDir + "hold.json"')" 1
   t_eq "$(count '      service.holdState, service.holdApps)')" 1
@@ -95,7 +95,7 @@ t_test "a missing anchor leaves the clone as it was and switches back to Omarchy
 t_twice() {
   fresh
   # An anchor that appears twice is as bad as a missing one.
-  sed -i 's|^    persistPopupFile(snapshot)$|    persistPopupFile(snapshot)\n    persistPopupFile(snapshot)|' "$TMP/src/Service.qml"
+  sed -i 's|^    storePut(row)$|    storePut(row)\n    storePut(row)|' "$TMP/src/Service.qml"
   "$DM" notifications-sync 2>/dev/null
   t_eq $? 1
   t_ok test ! -e "$(CLONE)"
@@ -121,9 +121,9 @@ t_check() {
   touch -d '2000-01-01' "$(CLONE)/Service.qml"
   "$DM" notifications-check
   t_eq "$(date -r "$(CLONE)/Service.qml" +%Y)" 2000
-  echo '// changed upstream' >>"$TMP/src/NotificationLogic.js"
+  echo '// changed upstream' >>"$TMP/src/Store.js"
   "$DM" notifications-check
-  t_ok grep -qxF '// changed upstream' "$(CLONE)/NotificationLogic.js"
+  t_ok grep -qxF '// changed upstream' "$(CLONE)/Store.js"
 }
 t_test "the check re-syncs only an installed clone, and only when the source changed" t_check
 

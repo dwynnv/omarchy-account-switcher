@@ -112,27 +112,27 @@ function deskCall(name, cls) {
   return "function() if account_switcher and account_switcher.desk and " + fn + " then " + fn + "('" + cls + "') end end"
 }
 
-// toasts.json: each terminal or agent toast's class by its file name (Omarchy's timestamp-id
-// stem, which history and restores keep), the newest TOAST_CLASSES_KEPT only. Returns a new
-// map; an empty FILE_NAME only cleans and trims.
+// toasts.json: each terminal or agent toast's class by its row key (Omarchy's own id for the
+// row, which history and restores keep), oldest first, the newest TOAST_CLASSES_KEPT only. A
+// key noted again moves to the end. Returns a new map; an empty NAME only cleans and trims.
 var TOAST_CLASSES_KEPT = 40
 
-function noteClass(classes, fileName, cls) {
+function noteClass(classes, name, cls) {
   var all = classes || {}
+  var noting = !!name && modeWindowClass(cls) !== ""
   var merged = {}
   var names = []
-  for (var name in all) {
-    if (modeWindowClass(all[name]) === "") continue
-    merged[name] = all[name]
+  for (var old in all) {
+    if (modeWindowClass(all[old]) === "" || (noting && old === name)) continue
+    merged[old] = all[old]
+    names.push(old)
+  }
+  if (noting) {
+    merged[name] = cls
     names.push(name)
   }
-  if (fileName && modeWindowClass(cls) !== "") {
-    if (!(fileName in merged)) names.push(fileName)
-    merged[fileName] = cls
-  }
-  names.sort(function(a, b) { return (parseInt(b, 10) || 0) - (parseInt(a, 10) || 0) })
   var kept = {}
-  for (var i = 0; i < names.length && i < TOAST_CLASSES_KEPT; i++) kept[names[i]] = merged[names[i]]
+  for (var i = Math.max(0, names.length - TOAST_CLASSES_KEPT); i < names.length; i++) kept[names[i]] = merged[names[i]]
   return kept
 }
 
