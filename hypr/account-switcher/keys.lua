@@ -36,9 +36,10 @@ entry("SUPER + mouse_up", "Scroll active workspace backward", "cycle", -1)
 entry("SUPER + S", "Toggle scratchpad", "scratchpad_toggle")
 entry("SUPER + ALT + S", "Move window to scratchpad", "scratchpad_move")
 entry("CTRL + ALT + DELETE", "Close all windows", "close_all")
--- SUPER+` (keycode 49): tap switches, hold peeks.
-entry("SUPER + code:49", "Switch mode (hold to peek)", "grave_down")
-entry("SUPER + SHIFT + code:49", "Send window to other mode", "send_across")
+-- SUPER+CTRL+` (keycode 49): tap switches, hold peeks. CTRL because Omarchy 4.5 gives
+-- SUPER+` and SUPER+SHIFT+` to its Quake console (bindings/tiling.lua).
+entry("SUPER + CTRL + code:49", "Switch mode (hold to peek)", "grave_down")
+entry("SUPER + CTRL + SHIFT + code:49", "Send window to other mode", "send_across")
 
 -- Omarchy's app keys whose apps carry a mode (bindings/applications.lua, utilities.lua):
 -- the exact display strings, Omarchy's descriptions, and the account-switcher command each runs.
@@ -112,8 +113,8 @@ function K.register(desk, live)
     end
     hl.bind(e.keys, action, { description = e.description })
   end
-  -- The release half of SUPER+`. No description, so the menu lists the key once.
-  hl.bind("SUPER + code:49", function() desk.grave_up() end, { release = true })
+  -- The release half of SUPER+CTRL+`. No description, so the menu lists the key once.
+  hl.bind("SUPER + CTRL + code:49", function() desk.grave_up() end, { release = true })
 
   if _G.omarchy_default_bindings ~= false then
     rebind_apps(K.APPS)

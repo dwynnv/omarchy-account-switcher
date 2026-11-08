@@ -36,8 +36,13 @@ end)
 t.test("mode keys are registered", function()
   local seen = {}
   for _, b in ipairs(binds) do seen[b.keys .. "|" .. tostring(b.desc)] = true end
-  t.ok(seen["SUPER + code:49|Switch mode (hold to peek)"], "switch/peek")
-  t.ok(seen["SUPER + SHIFT + code:49|Send window to other mode"], "send")
+  t.ok(seen["SUPER + CTRL + code:49|Switch mode (hold to peek)"], "switch/peek")
+  t.ok(seen["SUPER + CTRL + SHIFT + code:49|Send window to other mode"], "send")
+end)
+t.test("SUPER+` and SUPER+SHIFT+` stay Omarchy's Quake console", function()
+  for _, b in ipairs(binds) do
+    t.ok(b.keys ~= "SUPER + code:49" and b.keys ~= "SUPER + SHIFT + code:49", b.keys .. " taken")
+  end
 end)
 t.test("rebound keys can be replayed from the SUPER+K menu", function()
   local by = {}
@@ -46,7 +51,7 @@ t.test("rebound keys can be replayed from the SUPER+K menu", function()
   t.eq(by["SUPER + code:12"].arg, "function() account_switcher.desk.focus_slot(3) end")
   t.eq(by["SUPER + SHIFT + ALT + code:19"].arg, "function() account_switcher.desk.move_to_slot(10, false) end")
   t.eq(by["SUPER + SHIFT + TAB"].arg, "function() account_switcher.desk.cycle(-1) end")
-  t.eq(by["SUPER + code:49"].arg, "function() account_switcher.desk.switch() end")
+  t.eq(by["SUPER + CTRL + code:49"].arg, "function() account_switcher.desk.switch() end")
   for keys, b in pairs(by) do t.ok((b.kind == "lua" or b.kind == "exec") and b.arg, keys .. " has no replay") end
 end)
 t.test("Omarchy's app keys run account-switcher, once each, with Omarchy's descriptions", function()

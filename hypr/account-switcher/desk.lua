@@ -445,7 +445,7 @@ end
 
 function D.is_peeking() return peeking end
 
--- Peek: show the other mode on every monitor while SUPER+` is held. No memory, colours,
+-- Peek: show the other mode on every monitor while SUPER+CTRL+` is held. No memory, colours,
 -- alerts or saved mode change; release puts back exactly the workspaces that were showing.
 local hold_timer, poll_timer
 local peek_from

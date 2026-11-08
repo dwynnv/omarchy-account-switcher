@@ -6,15 +6,17 @@ Work and Personal on one machine, each a whole desk: its own workspaces, account
 
 | Key | Does |
 |---|---|
-| SUPER+` (tap) | Switch mode |
-| SUPER+` (hold) | Peek at the other mode; let go to come back |
-| SUPER+SHIFT+` | Send the focused window to the same number in the other mode |
+| SUPER+CTRL+` (tap) | Switch mode |
+| SUPER+CTRL+` (hold) | Peek at the other mode; let go to come back |
+| SUPER+CTRL+SHIFT+` | Send the focused window to the same number in the other mode |
 | SUPER+1…0, SUPER+SHIFT(+ALT)+1…0, SUPER+TAB family, SUPER+wheel, SUPER+S | As before, inside the current mode |
 | SUPER+RETURN, SUPER+SHIFT+F, SUPER+ALT+SHIFT+F, SUPER+SHIFT+CTRL+A | Terminal, file manager, agent — of the current mode |
 | SUPER+SHIFT+B (and RETURN), SUPER+SHIFT+ALT+B | The current mode's browser |
 | Omarchy's web-app keys | In the mode the config gives that web app, else the current one |
 | PRINT, ALT+PRINT | Screenshots and recordings go to the mode's folders |
 | Badge: left-click / right-click | Switch mode / open the panel |
+
+SUPER+` and SUPER+SHIFT+` are left to Omarchy's Quake console (Omarchy 4.5 and later).
 
 ## What you get
 
