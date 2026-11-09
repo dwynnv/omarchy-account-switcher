@@ -171,7 +171,7 @@ On the bar entry; change them with `omarchy bar set` (`''` clears one).
 | `personalWallpaper` | **Browse…** in the panel or the setup window (or `omarchy bar set account-switcher personalWallpaper ~/Pictures/a.jpg`) | one of Omarchy's backgrounds, copied at setup |
 | `personalColor` | `omarchy bar set account-switcher personalColor '#FF6A00'` (quoted: `#` starts a shell comment) | amber |
 
-Reminders come once a day: "Time to clock in" at the clock-in time unless you already did, "Time to clock out" while you're clocked in. A new wallpaper shows at the next switch; a new colour at once.
+Reminders come once a day: "Time to clock in" at the clock-in time unless you already did, "Time to clock out" while you're clocked in. A new wallpaper or colour shows at once.
 
 ## Notifications
 

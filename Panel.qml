@@ -363,7 +363,7 @@ Panel {
           Text {
             width: parent.width
             textFormat: Text.PlainText
-            text: "Change the other settings with these commands (an empty value, '', clears one). Reminders need a time; a new Personal wallpaper shows at the next switch."
+            text: "Change the other settings with these commands (an empty value, '', clears one). Reminders need a time."
             wrapMode: Text.Wrap
             color: root.faint
             font.family: root.fontFamily

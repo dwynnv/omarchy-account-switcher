@@ -160,6 +160,10 @@ Item {
 
   onModeChanged: applyWallpaper()
 
+  // A new Personal wallpaper (Browse…, Default, or `omarchy bar set`) shows at once in Personal.
+  readonly property string personalWallpaper: Model.wallpaperFor(root.barSettings, root.home)
+  onPersonalWallpaperChanged: if (root.mode === "personal") root.applyWallpaper()
+
   Process {
     id: workBackground
     command: ["readlink", "-f", root.backgroundDir + "/background"]
