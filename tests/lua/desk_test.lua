@@ -270,6 +270,16 @@ t.test("the setup window floats, centred", function()
   t.ok(found, "no float/center rule for the setup window")
 end)
 
+t.test("the wallpaper picker floats, centred, not as a tile", function()
+  laptop("work", 1)
+  local found
+  for _, r in ipairs(H.rules) do
+    if r.match and r.match.class == "^quickshell$" and r.match.title == "^Personal wallpaper$"
+      and r.float and r.center and r.size then found = r end
+  end
+  t.ok(found, "no float/center rule for the wallpaper picker")
+end)
+
 t.test("while sharing, a switch asks instead of moving", function()
   laptop("work", 1)
   desk.set_sharing(true)

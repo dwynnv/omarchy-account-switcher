@@ -54,6 +54,10 @@ function M.rules()
   -- The setup window (`omarchy-shell account-switcher.apps open`): a dialog, not a tile.
   hl.window_rule({ name = "account-switcher-apps-window", match = { title = "^Account Switcher – apps$" },
     tag = "-default-opacity", opacity = "1 1", float = true, center = true, size = { 960, 680 } })
+  -- Its wallpaper picker (a GTK file chooser with no parent window, so Hyprland would tile it).
+  hl.window_rule({ name = "account-switcher-wallpaper-picker",
+    match = { class = "^quickshell$", title = "^Personal wallpaper$" },
+    tag = "-default-opacity", opacity = "1 1", float = true, center = true, size = { 900, 600 } })
 end
 
 -- A new Personal colour ("#RRGGBB", or "" for the default): Personal's windows and, in

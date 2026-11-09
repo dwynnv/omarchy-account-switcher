@@ -35,8 +35,19 @@ Item {
   readonly property color workColor: Commons.Color.accent
   readonly property color personalColor: root.service && root.service.personalColor !== "" ? root.service.personalColor : "#FFB000"
 
+  // Shown again rather than left where it is: a window already open may be on another
+  // workspace or a special one that's hidden (the Quake console), and would stay out of sight.
+  // Hidden and shown in the same tick, Qt never unmaps it, so the showing waits a tick.
+  function show() {
+    if (!window.visible) {
+      window.visible = true
+      return
+    }
+    window.visible = false
+    Qt.callLater(function () { window.visible = true })
+  }
   function open() {
-    window.visible = true
+    root.show()
     root.reload()
   }
   function close() { window.visible = false }
@@ -44,9 +55,15 @@ Item {
     root.loading = true
     lister.running = true
   }
-  function browseWallpaper() {
-    window.visible = true
+  // open() on a picker that is already open does nothing, so one lost out of sight would make
+  // Browse look dead: close it first, and the new one opens on the workspace you're on.
+  function pickWallpaper() {
+    fileDialog.close()
     fileDialog.open()
+  }
+  function browseWallpaper() {
+    root.show()
+    root.pickWallpaper()
   }
   function setWallpaper(path) {
     Quickshell.execDetached(["omarchy", "bar", "set", "account-switcher", "personalWallpaper", path])
@@ -254,7 +271,7 @@ Item {
           color: root.foreground
           font.pixelSize: Style.font.body
         }
-        Button { text: "Browse…"; bordered: true; onClicked: fileDialog.open() }
+        Button { text: "Browse…"; bordered: true; onClicked: root.pickWallpaper() }
         Button { text: "Default"; bordered: true; onClicked: root.setWallpaper("") }
       }
 
