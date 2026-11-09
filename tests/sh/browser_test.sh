@@ -54,9 +54,9 @@ t_test "a browser that isn't running is started like Omarchy does" t_browser_col
 t_browser_focus() {
   fresh
   desk work
-  clients '[{"class":"google-chrome","address":"0xa","workspace":{"id":12},"focusHistoryID":0},
+  clients '[{"class":"google-chrome","address":"0xa","workspace":{"id":112},"focusHistoryID":0},
             {"class":"google-chrome","address":"0xb","workspace":{"id":2},"focusHistoryID":3},
-            {"class":"google-chrome","address":"0xc","workspace":{"id":4},"focusHistoryID":1}]'
+            {"class":"google-chrome","address":"0xc","workspace":{"id":24},"focusHistoryID":1}]'
   "$DM" browser https://example.org
   log_has 'hyprctl dispatch hl.dsp.focus({ window = "address:0xc" })'
 }
@@ -85,7 +85,7 @@ t_webapp_focus() {
   fresh
   desk personal
   clients '[{"class":"chrome-web.whatsapp.com__-Default","title":"WhatsApp","address":"0x1","workspace":{"id":2},"focusHistoryID":0},
-            {"class":"chrome-web.whatsapp.com__-Default","title":"(3) WhatsApp","address":"0x2","workspace":{"id":13},"focusHistoryID":1}]'
+            {"class":"chrome-web.whatsapp.com__-Default","title":"(3) WhatsApp","address":"0x2","workspace":{"id":113},"focusHistoryID":1}]'
   "$DM" webapp --mode=personal --focus=WhatsApp https://web.whatsapp.com/
   log_has 'hyprctl dispatch hl.dsp.focus({ window = "address:0x2" })'
   t_none handoff "$ACCOUNT_SWITCHER_RUN_LOG"

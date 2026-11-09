@@ -18,7 +18,9 @@ local store = require("hypr.account-switcher.store")
 assert(store.dir():sub(1, #tmp) == tmp, "state must stay in the scratch folder")
 
 local AU, LGA, LGB = "Laptop Panel 0x0001", "Desk Monitor A", "Desk Monitor B"
-local DOCKED = { work = { [AU] = 1, [LGA] = 3, [LGB] = 2 }, personal = { [AU] = 12, [LGA] = 13, [LGB] = 14 } }
+-- Omarchy's per-monitor blocks (hyprmock): the laptop on 0, LGA on 1, LGB on 2. Work on a
+-- block is block*10 + slot, Personal 100 above.
+local DOCKED = { work = { [AU] = 1, [LGA] = 13, [LGB] = 22 }, personal = { [AU] = 102, [LGA] = 113, [LGB] = 124 } }
 
 local desk
 -- A config load: Hyprland rebuilds the Lua state, so handlers and timers are gone and the
@@ -58,8 +60,8 @@ end
 local function docked_personal(extra)
   fresh("personal", DOCKED)
   local e, a, b = H.monitor("eDP-1", AU, 0), H.monitor("HDMI-A-1", LGA, 1920), H.monitor("DP-1", LGB, 3840)
-  H.create_ws(1, e); H.create_ws(3, a); H.create_ws(2, b)
-  H.show(e, H.create_ws(12, e)); H.show(a, H.create_ws(13, a)); H.show(b, H.create_ws(14, b))
+  H.create_ws(1, e); H.create_ws(13, a); H.create_ws(22, b)
+  H.show(e, H.create_ws(102, e)); H.show(a, H.create_ws(113, a)); H.show(b, H.create_ws(124, b))
   if extra then extra(e, a, b) end
   H.focus = a
   load_config()
@@ -68,9 +70,9 @@ local function docked_personal(extra)
 end
 
 local function laptop(mode, active)
-  fresh(mode, { work = { [AU] = 1 }, personal = { [AU] = 12 } })
+  fresh(mode, { work = { [AU] = 1 }, personal = { [AU] = 102 } })
   local e = H.monitor("eDP-1", AU, 0)
-  H.create_ws(1, e); H.create_ws(3, e); H.create_ws(12, e)
+  H.create_ws(1, e); H.create_ws(3, e); H.create_ws(102, e)
   H.show(e, H.ws(active)); H.focus = e
   load_config()
   H.advance(2000)
@@ -89,15 +91,18 @@ end
 local function status() return store.read("status") end
 
 t.test("moving a workspace to another monitor keeps the desk in Personal", function()
-  fresh("personal", { work = { [AU] = 1, [LGA] = 3 }, personal = { [AU] = 12, [LGA] = 13 } })
+  fresh("personal", { work = { [AU] = 1, [LGA] = 13 }, personal = { [AU] = 102, [LGA] = 113 } })
   local e, d = H.monitor("eDP-1", AU, 0), H.monitor("DP-1", LGA, 1920)
-  H.create_ws(1, e); H.create_ws(3, d)
-  H.show(e, H.create_ws(12, e)); H.show(d, H.create_ws(13, d)); H.focus = d
+  H.create_ws(1, e); H.create_ws(13, d)
+  H.show(e, H.create_ws(102, e)); H.show(d, H.create_ws(113, d)); H.focus = d
   load_config(); H.advance(2000)
-  hl.dispatch(hl.dsp.workspace.move({ monitor = "l" })) -- stock SUPER+SHIFT+ALT+LEFT
+  desk.move_workspace_to_monitor("l") -- SUPER+SHIFT+ALT+LEFT
   H.advance(2000)
   assert_desk("personal")
-  t.eq(H.focus.active.id, 13)
+  -- It joins the laptop's Personal under the same number, and DP-1 is back on one of its own.
+  t.eq(H.focus.active.id, 103)
+  t.eq(H.focus.name, "eDP-1")
+  t.eq(logic.block_of(H.mon("DP-1").active.id), 1)
 end)
 
 t.test("undocking and re-docking in Personal keeps every monitor in Personal", function()
@@ -120,36 +125,40 @@ t.test("closing and opening the lid while docked in Personal keeps the desk in P
 end)
 
 t.test("a new monitor that gets focus before the fix still joins Personal", function()
-  laptop("personal", 12)
+  laptop("personal", 102)
   H.connect("DP-1", LGA, 1920)
   H.rawMonitorFocus(H.mon("DP-1")) -- the pointer moves onto it right away
   H.advance(2000)
   assert_desk("personal")
 end)
 
-t.test("unplugging a monitor in Personal loses no workspace", function()
-  docked_personal(function(_, a) H.show(a, H.create_ws(15, a)) end)
+t.test("unplugging a monitor in Personal loses no workspace, and they go back with it", function()
+  docked_personal(function(_, a) H.show(a, H.create_ws(115, a)) end)
   H.disconnect("HDMI-A-1"); H.advance(2000)
   desk.focus_slot(3); H.advance(2000)
   assert_desk("personal")
-  t.eq(H.focus.active.id, 13)
+  t.eq(H.focus.active.id, 103) -- the laptop's own 3
+  t.ok(H.ws(113) and H.ws(115), "HDMI's workspaces are gone")
+  H.connect("HDMI-A-1", LGA, 1920); H.advance(2000)
+  t.eq(H.ws(115).monitor.name, "HDMI-A-1")
+  assert_desk("personal")
 end)
 
 t.test("landing on a Work workspace on the focused monitor still switches the desk", function()
   docked_personal()
-  hl.dispatch(hl.dsp.focus({ workspace = "3" })) -- a click on a Work workspace
+  hl.dispatch(hl.dsp.focus({ workspace = "13" })) -- a click on a Work workspace
   H.advance(2000)
   assert_desk("work")
 end)
 
 t.test("start-up in Personal brings the first monitor to Personal", function()
-  fresh("personal", { work = {}, personal = { [AU] = 14 } })
+  fresh("personal", { work = {}, personal = { [AU] = 104 } })
   load_config() -- the first load runs before any monitor exists
   H.connect("eDP-1", AU, 0)
   H.emit("hyprland.start")
   H.advance(2000)
   assert_desk("personal")
-  t.eq(H.screens(), "eDP-1=14*")
+  t.eq(H.screens(), "eDP-1=104*")
 end)
 
 t.test("start-up writes a fresh status, dropping last session's alerts", function()
@@ -172,8 +181,8 @@ t.test("a window in the Work scratchpad can't pull focus in Personal", function(
 end)
 
 t.test("a window in the Personal scratchpad can't pull focus in Work", function()
-  laptop("personal", 12)
-  local c = H.open_window("com.mitchellh.ghostty", H.ws(12))
+  laptop("personal", 102)
+  local c = H.open_window("com.mitchellh.ghostty", H.ws(102))
   c.focused = true
   desk.scratchpad_move() -- SUPER+ALT+S in Personal
   desk.switch("work"); H.advance(2000)
@@ -191,7 +200,7 @@ t.test("a window minimized from Work stays Work's, and its attention becomes an 
 end)
 
 t.test("alerts survive a config reload", function()
-  laptop("personal", 12)
+  laptop("personal", 102)
   local c = H.open_window("com.mitchellh.ghostty", H.ws(3))
   H.emit("window.urgent", H.winproxy(c))
   t.eq(status(), "mode=personal peek=0 alerts=1 share=0\n")
@@ -200,7 +209,7 @@ t.test("alerts survive a config reload", function()
 end)
 
 t.test("switching to the alerting window's mode clears its alert", function()
-  laptop("personal", 12)
+  laptop("personal", 102)
   local c = H.open_window("com.mitchellh.ghostty", H.ws(3))
   H.emit("window.urgent", H.winproxy(c))
   desk.switch("work"); H.advance(2000)
@@ -210,7 +219,7 @@ t.test("switching to the alerting window's mode clears its alert", function()
 end)
 
 t.test("closing an alerting window drops its alert", function()
-  laptop("personal", 12)
+  laptop("personal", 102)
   local c = H.open_window("com.mitchellh.ghostty", H.ws(3))
   H.emit("window.urgent", H.winproxy(c))
   hl.dispatch(hl.dsp.window.close({ window = H.winproxy(c) }))
@@ -218,8 +227,8 @@ t.test("closing an alerting window drops its alert", function()
 end)
 
 t.test("a Chrome window opening in Personal waits in Work with an alert", function()
-  laptop("personal", 12)
-  local c = H.open_window("google-chrome", H.ws(12))
+  laptop("personal", 102)
+  local c = H.open_window("google-chrome", H.ws(102))
   H.advance(2000)
   t.eq(c.ws.id, 2)
   t.eq(status(), "mode=personal peek=0 alerts=1 share=0\n")
@@ -227,10 +236,10 @@ t.test("a Chrome window opening in Personal waits in Work with an alert", functi
 end)
 
 t.test("the app rules are read at every load: a Chromium configured as Work's waits in Work", function()
-  laptop("personal", 12)
+  laptop("personal", 102)
   store.write("apps", "exe work /usr/lib/chromium/\nclass work chromium\nbrowser chromium\n")
   load_config(); H.advance(2000)
-  local c = H.open_window("chromium", H.ws(12))
+  local c = H.open_window("chromium", H.ws(102))
   H.advance(2000)
   t.eq(logic.mode_of(c.ws.id), "work")
   t.eq(status(), "mode=personal peek=0 alerts=1 share=0\n")
@@ -240,13 +249,13 @@ t.test("a Chromium window opening in Work waits in Personal with an alert", func
   laptop("work", 3)
   local c = H.open_window("chromium", H.ws(3))
   H.advance(2000)
-  t.eq(c.ws.id, 13)
+  t.eq(c.ws.id, 103)
   t.eq(status(), "mode=work peek=0 alerts=1 share=0\n")
 end)
 
 t.test("an agent from the bar's agents panel takes the desk to Work", function()
-  laptop("personal", 12)
-  local c = H.open_window("org.omarchy.agent", H.ws(12))
+  laptop("personal", 102)
+  local c = H.open_window("org.omarchy.agent", H.ws(102))
   H.advance(2000)
   t.eq(logic.mode_of(c.ws.id), "work")
   assert_desk("work")
@@ -298,7 +307,7 @@ t.test("a landing on the other mode while sharing is put back", function()
   docked_personal()
   desk.set_sharing(true)
   H.events = {}
-  hl.dispatch(hl.dsp.focus({ workspace = "3" }))
+  hl.dispatch(hl.dsp.focus({ workspace = "13" }))
   H.advance(2000)
   assert_desk("personal")
   t.ok(table.concat(H.events, "|"):find("account-switcher-ask switch work", 1, true), table.concat(H.events, "|"))
@@ -329,16 +338,16 @@ end)
 local function click(c) hl.dispatch(hl.dsp.focus({ window = "address:" .. c.address })) end
 
 t.test("a dock click on a hidden shared app brings it to you", function()
-  laptop("personal", 12)
+  laptop("personal", 102)
   local c = H.open_window("spotify", H.ws(3))
   click(c)
   H.advance(2000)
-  t.eq(c.ws.id, 12)
+  t.eq(c.ws.id, 102)
   assert_desk("personal")
 end)
 
 t.test("a dock click on a hidden home-mode app takes the desk to its mode", function()
-  laptop("personal", 12)
+  laptop("personal", 102)
   local c = H.open_window("Slack", H.ws(3))
   click(c)
   H.advance(2000)
@@ -348,11 +357,11 @@ t.test("a dock click on a hidden home-mode app takes the desk to its mode", func
 end)
 
 t.test("a click on a hidden window focuses the same app's window in this mode instead", function()
-  laptop("personal", 12)
+  laptop("personal", 102)
   local work = H.open_window("google-chrome", H.ws(3))
   local here = H.open_window("google-chrome", H.ws(3))
   here.focused = true
-  desk.send_across() -- this Chrome window is now in Personal (13)
+  desk.send_across() -- this Chrome window is now in Personal (103)
   here.focused = false
   click(work)
   H.advance(2000)
@@ -361,7 +370,7 @@ t.test("a click on a hidden window focuses the same app's window in this mode in
 end)
 
 t.test("while sharing, a click on a hidden window moves nothing and asks", function()
-  laptop("personal", 12)
+  laptop("personal", 102)
   local c = H.open_window("Slack", H.ws(3))
   desk.set_sharing(true)
   H.events = {}
@@ -373,11 +382,11 @@ t.test("while sharing, a click on a hidden window moves nothing and asks", funct
 end)
 
 t.test("a window restored from the minimized pile into the other mode goes to its own", function()
-  laptop("personal", 12)
+  laptop("personal", 102)
   local c = H.open_window("Slack", H.ws(3))
   hl.dispatch(hl.dsp.window.move({ workspace = "special:minimized", window = H.winproxy(c) }))
   -- The dock after a shell restart: back onto the current workspace, then focus.
-  hl.dispatch(hl.dsp.window.move({ workspace = "12", window = "address:" .. c.address, follow = false }))
+  hl.dispatch(hl.dsp.window.move({ workspace = "102", window = "address:" .. c.address, follow = false }))
   t.eq(c.ws.id, 2)
   click(c)
   H.advance(2000)
@@ -385,22 +394,22 @@ t.test("a window restored from the minimized pile into the other mode goes to it
 end)
 
 t.test("focus by workspace is left to the landing rules", function()
-  laptop("personal", 12)
+  laptop("personal", 102)
   hl.dispatch(hl.dsp.focus({ workspace = "3" }))
   H.advance(2000)
   assert_desk("work")
 end)
 
 t.test("after a reload the wrappers are back and the switcher's own moves don't loop", function()
-  laptop("personal", 12)
+  laptop("personal", 102)
   load_config()
   load_config()
   H.advance(2000)
   desk.focus_slot(3)
-  t.eq(H.focus.active.id, 13)
+  t.eq(H.focus.active.id, 103)
   local c = H.open_window("spotify", H.ws(3))
   click(c)
-  t.eq(c.ws.id, 13)
+  t.eq(c.ws.id, 103)
 end)
 
 -- Toast clicks: a terminal's or agent's toast is Ghostty's, and a click on it comes back as
@@ -409,7 +418,7 @@ local TERM_P = "org.omarchy.term-personal"
 
 t.test("a toast click on a hidden terminal takes the desk to it instead of an alert", function()
   laptop("work", 3)
-  local c = H.open_window(TERM_P, H.ws(12))
+  local c = H.open_window(TERM_P, H.ws(102))
   desk.toast_clicked(TERM_P)
   H.emit("window.urgent", H.winproxy(c))
   H.advance(2000)
@@ -420,7 +429,7 @@ end)
 
 t.test("a hidden terminal asking for attention by itself still waits as an alert", function()
   laptop("work", 3)
-  local c = H.open_window(TERM_P, H.ws(12))
+  local c = H.open_window(TERM_P, H.ws(102))
   H.emit("window.urgent", H.winproxy(c))
   H.advance(2000)
   assert_desk("work")
@@ -429,7 +438,7 @@ end)
 
 t.test("a toast click counts only for a moment", function()
   laptop("work", 3)
-  local c = H.open_window(TERM_P, H.ws(12))
+  local c = H.open_window(TERM_P, H.ws(102))
   desk.toast_clicked(TERM_P)
   H.advance(5000)
   H.emit("window.urgent", H.winproxy(c))
@@ -440,7 +449,7 @@ end)
 
 t.test("a toast click counts once", function()
   laptop("work", 3)
-  local c = H.open_window(TERM_P, H.ws(12))
+  local c = H.open_window(TERM_P, H.ws(102))
   desk.toast_clicked(TERM_P)
   H.emit("window.urgent", H.winproxy(c))
   H.advance(500)
@@ -452,8 +461,8 @@ t.test("a toast click counts once", function()
 end)
 
 t.test("a toast click focuses the window that asked, not another of its class", function()
-  laptop("personal", 12)
-  local here = H.open_window("org.omarchy.term-work", H.ws(12)) -- a Work terminal sent to Personal
+  laptop("personal", 102)
+  local here = H.open_window("org.omarchy.term-work", H.ws(102)) -- a Work terminal sent to Personal
   local there = H.open_window("org.omarchy.term-work", H.ws(3))
   desk.toast_clicked("org.omarchy.term-work")
   H.emit("window.urgent", H.winproxy(there))
@@ -465,7 +474,7 @@ end)
 
 t.test("while sharing, a toast click on a hidden terminal asks first", function()
   laptop("work", 3)
-  local c = H.open_window(TERM_P, H.ws(12))
+  local c = H.open_window(TERM_P, H.ws(102))
   desk.set_sharing(true)
   H.events = {}
   desk.toast_clicked(TERM_P)
@@ -477,9 +486,9 @@ end)
 
 t.test("a toast with no live sender focuses its class's most recent window", function()
   laptop("work", 3)
-  local never = H.open_window(TERM_P, H.ws(12))
-  local older = H.open_window(TERM_P, H.ws(12))
-  local newer = H.open_window(TERM_P, H.ws(12))
+  local never = H.open_window(TERM_P, H.ws(102))
+  local older = H.open_window(TERM_P, H.ws(102))
+  local newer = H.open_window(TERM_P, H.ws(102))
   never.history, older.history, newer.history = -1, 2, 1
   H.open_window("org.omarchy.term-work", H.ws(3)).history = 0
   desk.focus_class(TERM_P)
@@ -519,7 +528,7 @@ t.test("clock-in: places last across a reload, and only Work workspaces are reme
   H.create_ws(4, e)
   local code = H.open_window("com.microsoft.VSCode", H.ws(4))
   hl.dispatch(hl.dsp.window.close({ window = H.winproxy(code) }))
-  local sent = H.open_window("com.microsoft.VSCode", H.ws(12))
+  local sent = H.open_window("com.microsoft.VSCode", H.ws(102))
   hl.dispatch(hl.dsp.window.close({ window = H.winproxy(sent) }))
   local term = H.open_window("com.mitchellh.ghostty", H.ws(1))
   hl.dispatch(hl.dsp.window.close({ window = H.winproxy(term) }))
@@ -554,9 +563,9 @@ t.test("clock-in: an expectation lapses after two minutes", function()
 end)
 
 t.test("clock-in: a window expected while the desk stays in Personal waits in Work", function()
-  laptop("personal", 12)
+  laptop("personal", 102)
   account_switcher.desk.expect("Slack")
-  local c = H.open_window("Slack", H.ws(12))
+  local c = H.open_window("Slack", H.ws(102))
   H.advance(2000)
   t.eq(c.ws.id, 2)
   t.eq(status(), "mode=personal peek=0 alerts=1 share=0\n")
@@ -565,11 +574,11 @@ end)
 
 -- Settings: the Personal colour.
 t.test("the Personal colour is read at load and can change live", function()
-  fresh("personal", { work = { [AU] = 1 }, personal = { [AU] = 12 } })
+  fresh("personal", { work = { [AU] = 1 }, personal = { [AU] = 102 } })
   store.write("look", "personal_color=#3366FF\n")
   local e = H.monitor("eDP-1", AU, 0)
-  H.create_ws(1, e); H.create_ws(12, e)
-  H.show(e, H.ws(12)); H.focus = e
+  H.create_ws(1, e); H.create_ws(102, e)
+  H.show(e, H.ws(102)); H.focus = e
   load_config()
   H.advance(2000)
   t.eq(H.border_value, { colors = { "rgba(3366ffee)", "rgba(264cbfee)" }, angle = 45 })
@@ -591,6 +600,120 @@ t.test("the Personal colour is read at load and can change live", function()
   H.advance(2000)
   account_switcher.set_personal_colour("#00FF00")
   t.eq(H.border, "work")
+end)
+
+-- Per-monitor workspaces: every monitor has its own 1-10 in each mode.
+local function docked_work()
+  fresh("work", DOCKED)
+  local e, a, b = H.monitor("eDP-1", AU, 0), H.monitor("HDMI-A-1", LGA, 1920), H.monitor("DP-1", LGB, 3840)
+  H.show(e, H.create_ws(1, e)); H.show(a, H.create_ws(13, a)); H.show(b, H.create_ws(22, b))
+  H.focus = a
+  load_config()
+  H.advance(2000)
+  return e, a, b
+end
+
+t.test("SUPER+number goes to that number on the focused monitor, in each mode", function()
+  local e, a, b = docked_work()
+  desk.focus_slot(4); H.advance(2000)
+  t.eq(H.screens(), "eDP-1=1 HDMI-A-1=14* DP-1=22")
+  H.focus = b
+  desk.focus_slot(4); H.advance(2000)
+  t.eq(H.screens(), "eDP-1=1 HDMI-A-1=14 DP-1=24*")
+  H.focus = e
+  desk.focus_slot(4); H.advance(2000)
+  t.eq(H.screens(), "eDP-1=4* HDMI-A-1=14 DP-1=24")
+  desk.switch("personal"); H.advance(2000)
+  H.focus = a
+  desk.focus_slot(7); H.advance(2000)
+  t.eq(H.focus.active.id, 117)
+  assert_desk("personal")
+end)
+
+t.test("SUPER+SHIFT+number moves the window to that number on the focused monitor", function()
+  local _, _, b = docked_work()
+  H.focus = b
+  local c = H.open_window("com.mitchellh.ghostty", H.ws(22))
+  c.focused = true
+  desk.move_to_slot(5, false)
+  t.eq(c.ws.id, 25)
+  t.eq(c.ws.monitor.name, "DP-1")
+end)
+
+t.test("SUPER+TAB cycles through the focused monitor's workspaces only", function()
+  local _, a = docked_work()
+  H.create_ws(15, a); H.create_ws(3, H.mon("eDP-1"))
+  desk.cycle(1); H.advance(2000)
+  t.eq(H.focus.active.id, 15)
+  desk.cycle(1); H.advance(2000)
+  t.eq(H.focus.active.id, 13)
+end)
+
+t.test("moving a workspace away leaves the monitor it left on one of its own", function()
+  local _, _, b = docked_work()
+  H.focus = b
+  desk.move_workspace_to_monitor("l"); H.advance(2000)
+  -- DP-1's 22 joins HDMI as its 2; Hyprland filled DP-1's gap with the lowest free id.
+  t.eq(H.mon("HDMI-A-1").active.id, 12)
+  t.eq(H.focus.name, "HDMI-A-1")
+  t.eq(logic.block_of(H.mon("DP-1").active.id), 2)
+  assert_desk("work")
+end)
+
+t.test("Omarchy's own renumbering stands down", function()
+  docked_work()
+  H.reconciled = nil
+  o.workspaces.reconcile()
+  t.eq(H.reconciled, nil)
+end)
+
+t.test("updating from 1.3 renumbers each workspace onto its monitor's block, once", function()
+  fresh("work")
+  store.mark_first_run()
+  local e, a, b = H.monitor("eDP-1", AU, 0), H.monitor("HDMI-A-1", LGA, 1920), H.monitor("DP-1", LGB, 3840)
+  H.show(e, H.create_ws(1, e)); H.show(a, H.create_ws(4, a)); H.show(b, H.create_ws(2, b))
+  H.create_ws(11, a); H.create_ws(13, b); H.create_ws(15, a)
+  local slack = H.window("Slack", H.ws(1))
+  local moved = H.window("google-chrome", H.ws(15)) -- Omarchy 4.5 had moved HDMI's Work 5 to 15
+  local code = H.window("com.microsoft.VSCode", H.ws(4))
+  local mine = H.window("chromium", H.ws(11))
+  local chrome = H.window("google-chrome", H.ws(2))
+  local other = H.window("chromium", H.ws(13))
+  H.focus = a
+  load_config(); H.advance(2000)
+  t.eq({ slack.ws.id, code.ws.id, mine.ws.id, chrome.ws.id, other.ws.id, moved.ws.id }, { 1, 14, 111, 22, 123, 15 })
+  assert_desk("work")
+  t.eq(H.screens(), "eDP-1=1 HDMI-A-1=14* DP-1=22")
+  -- A reload later leaves Work 11-20 alone: they are HDMI's.
+  local later = H.window("Slack", H.create_ws(16, a))
+  load_config(); H.advance(2000)
+  t.eq(later.ws.id, 16)
+end)
+
+t.test("a new install has nothing to renumber", function()
+  fresh("work")
+  local e, a = H.monitor("eDP-1", AU, 0), H.monitor("HDMI-A-1", LGA, 1920)
+  H.show(e, H.create_ws(1, e)); H.show(a, H.create_ws(11, a))
+  local c = H.window("Slack", H.ws(11))
+  H.focus = a
+  load_config(); H.advance(2000)
+  t.eq(c.ws.id, 11)
+  t.eq(H.screens(), "eDP-1=1 HDMI-A-1=11*")
+end)
+
+t.test("without Omarchy's per-monitor workspaces every monitor shares one block", function()
+  H.omarchy = false
+  local ok, err = pcall(function()
+    local _, _, b = docked_work()
+    H.focus = b
+    desk.focus_slot(4); H.advance(2000)
+    t.eq(H.focus.active.id, 4)
+    desk.switch("personal"); H.advance(2000)
+    assert_desk("personal")
+    t.eq(logic.block_of(H.focus.active.id), 0)
+  end)
+  H.omarchy = nil
+  if not ok then error(err, 0) end
 end)
 
 t.done()

@@ -16,14 +16,24 @@ function test(name, fn) {
 }
 const eq = (a, b) => assert.deepStrictEqual(JSON.parse(JSON.stringify(a)), b)
 
-test("modes and ids", () => {
-  eq(M.modeOf(3), "work"); eq(M.modeOf(13), "personal"); eq(M.modeOf(0), null); eq(M.modeOf(21), null)
-  eq(M.otherMode("work"), "personal"); eq(M.slotOf(20), 10); eq(M.idFor("personal", 1), 11)
+test("modes and ids: each monitor's block of ten, Personal 100 above Work", () => {
+  eq(M.modeOf(3), "work"); eq(M.modeOf(13), "work"); eq(M.modeOf(100), "work")
+  eq(M.modeOf(101), "personal"); eq(M.modeOf(200), "personal"); eq(M.modeOf(0), null); eq(M.modeOf(201), null)
+  eq(M.otherMode("work"), "personal"); eq(M.slotOf(20), 10); eq(M.slotOf(113), 3)
+  eq(M.blockOf(3), 0); eq(M.blockOf(23), 2); eq(M.blockOf(113), 1)
+  eq(M.idFor("personal", 1), 101); eq(M.idFor("work", 4, 2), 24); eq(M.idFor("personal", 10, 1), 120)
 })
-test("buttons show slots 1-5 plus existing ids of the mode", () => {
+test("buttons show the monitor's slots 1-5 plus its other workspaces of the mode", () => {
   eq(M.buttonIds("work", [2, 8, 13]), [1, 2, 3, 4, 5, 8])
-  eq(M.buttonIds("personal", [2, 13, 19]), [11, 12, 13, 14, 15, 19])
-  eq(M.labelFor(10), "0"); eq(M.labelFor(20), "0"); eq(M.labelFor(13), "3")
+  eq(M.buttonIds("work", [2, 18, 13], 1), [11, 12, 13, 14, 15, 18])
+  eq(M.buttonIds("personal", [2, 103, 109, 113], 0), [101, 102, 103, 104, 105, 109])
+  // Another monitor's workspaces waiting on this one (an unplug) come after its own.
+  eq(M.buttonIds("work", [1, 27, 23, 116], 0, [1, 27, 23, 116]), [1, 2, 3, 4, 5, 23, 27])
+  eq(M.labelFor(10), "0"); eq(M.labelFor(20), "0"); eq(M.labelFor(13), "3"); eq(M.labelFor(110), "0")
+})
+test("blocks come from Omarchy's monitor-workspaces file", () => {
+  eq(M.parseBlocks("0\teDP-1\tLaptop Panel 0x0001\n1\tHDMI-A-1\tDesk Monitor A\n3\t\tUnplugged\nnope\n"), { "eDP-1": 0, "HDMI-A-1": 1 })
+  eq(M.parseBlocks(""), {})
 })
 test("status and events", () => {
   eq(M.parseStatus("mode=personal peek=1 alerts=2\n"), { mode: "personal", peek: true, alerts: 2, share: false })

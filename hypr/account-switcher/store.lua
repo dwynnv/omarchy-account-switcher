@@ -51,6 +51,10 @@ function S.save_mode(mode) return S.write("mode", mode .. "\n") end
 function S.first_run_done() return S.read("first-run-done") ~= nil end
 function S.mark_first_run() return S.write("first-run-done", os.date("!%Y-%m-%dT%H:%M:%SZ") .. "\n") end
 
+-- Workspaces were renumbered onto per-monitor blocks (1.4).
+function S.numbering_done() return S.read("numbering") ~= nil end
+function S.mark_numbering() return S.write("numbering", "per-monitor\n") end
+
 function S.save_status(line) return S.write("status", line .. "\n") end
 
 function S.load_places() return logic.parse_places(S.read("places")) end

@@ -10,6 +10,7 @@ function H.reset()
   H.focus, H.remembered, H.timers, H.handlers = nil, {}, {}, {}
   H.now, H.events, H.border, H.next_special, H.next_addr = 0, {}, nil, -98, 1
   H.rules = {}
+  H.blocks = {}
 end
 H.reset()
 
@@ -61,6 +62,11 @@ function wsproxy(w)
     if k == "name" then return w.name end
     if k == "special" then return w.special == true end
     if k == "monitor" then return w.monitor and monproxy(w.monitor) or nil end
+    if k == "windows" then
+      local n = 0
+      for _, c in ipairs(H.windows) do if c.ws == w then n = n + 1 end end
+      return n
+    end
   end })
 end
 function winproxy(c)
@@ -391,6 +397,65 @@ hl = {
     exec_cmd = function(c) return function() H.events[#H.events + 1] = "exec " .. c end end,
   },
 }
+
+-- Omarchy 4.5's per-monitor blocks (default/hypr/monitor-workspaces.lua): the laptop panel
+-- on block 0, every other monitor on the next free block the first time it is seen, kept by
+-- its description. H.omarchy = false models an Omarchy without them.
+local function block_for(m)
+  if m.name:match("^eDP") then return 0 end
+  if not H.blocks[m.desc] then
+    local taken = {}
+    for _, b in pairs(H.blocks) do taken[b] = true end
+    local b = 1
+    while taken[b] do b = b + 1 end
+    H.blocks[m.desc] = b
+  end
+  return H.blocks[m.desc]
+end
+H.block_for = block_for
+o = {
+  workspaces = {
+    reconcile = function() H.reconciled = (H.reconciled or 0) + 1 end,
+    workspace_id = function(monitor, slot)
+      if H.omarchy == false then error("no per-monitor workspaces") end
+      local m = H.mon(monitor.name)
+      return block_for(m) * 10 + slot
+    end,
+  },
+}
+
+local function by_direction(cur, dir)
+  local best
+  for _, m in ipairs(H.monitors) do
+    if m ~= cur and ((dir == "l" and m.x < cur.x and (not best or m.x > best.x))
+      or (dir == "r" and m.x > cur.x and (not best or m.x < best.x))) then best = m end
+  end
+  return best
+end
+hl.get_monitor = function(x)
+  local m = H.mon(x)
+  if m and contains(H.monitors, m) then return monproxy(m) end
+  m = H.focus and by_direction(H.focus, x)
+  return m and monproxy(m) or nil
+end
+-- moveCurrentWorkspaceToMonitor, by direction or by name.
+hl.dsp.workspace.move = function(t)
+  return function()
+    local cur = H.focus
+    local target = H.mon(t.monitor)
+    if not (target and contains(H.monitors, target)) then target = cur and by_direction(cur, t.monitor) end
+    if target and cur then H.moveWorkspaceToMonitor(cur.active, target) end
+  end
+end
+-- renameWorkspace's id change (hl.dsp.workspace.change_id): the workspace keeps its windows.
+hl.dsp.workspace.change_id = function(t)
+  return function()
+    local w = H.ws(tonumber(t.workspace))
+    if w and not H.ws(t.id) then
+      w.id, w.name = t.id, tostring(t.id)
+    end
+  end
+end
 
 -- Hyprland builds a fresh `hl` on every config load: tests put the pristine dispatchers back.
 H.pristine = { focus = hl.dsp.focus, move = hl.dsp.window.move }

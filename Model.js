@@ -1,7 +1,11 @@
 // Pure logic for the mode widget and service. Plain JS (no .pragma library) so the
 // QML engine reloads it on save and node can load it for tests.
 
-var OFFSET = { work: 0, personal: 10 }
+// Every monitor has its own workspaces 1-10 in each mode: Omarchy 4.5 numbers a monitor's
+// workspaces in a block of ten (the laptop 1-10, the next monitor 11-20, ...), which Work uses
+// as they are; Personal is the same block 100 higher (101-110, 111-120, ...).
+var SLOTS = 10
+var OFFSET = { work: 0, personal: 100 }
 
 // Badge glyphs, built from code points (U+25C6 black diamond, U+25CF black circle).
 var GLYPH = { work: String.fromCodePoint(0x25C6), personal: String.fromCodePoint(0x25CF) }
@@ -10,8 +14,8 @@ var SHARE_GLYPH = String.fromCodePoint(0x25C9)
 var ASK_TITLE = "You're sharing your screen"
 
 function modeOf(id) {
-  if (id >= 1 && id <= 10) return "work"
-  if (id >= 11 && id <= 20) return "personal"
+  if (id >= 1 && id <= 100) return "work"
+  if (id >= 101 && id <= 200) return "personal"
   return null
 }
 
@@ -20,22 +24,46 @@ function otherMode(mode) {
 }
 
 function slotOf(id) {
-  return (id - 1) % 10 + 1
+  return (id - 1) % SLOTS + 1
 }
 
-function idFor(mode, slot) {
-  return OFFSET[mode] + slot
+function blockOf(id) {
+  return Math.floor(((id - 1) % 100) / SLOTS)
 }
 
-// Like the stock widget: slots 1-5 always, plus any other workspace of the mode that exists.
-function buttonIds(mode, existingIds) {
-  var ids = []
-  for (var slot = 1; slot <= 5; slot++) ids.push(idFor(mode, slot))
+function idFor(mode, slot, block) {
+  return OFFSET[mode] + (block || 0) * SLOTS + slot
+}
+
+// Like the stock widget: the monitor's slots 1-5 always, plus any other workspace of the mode
+// in its block, then the mode's workspaces of other monitors that sit on this one (onMonitor).
+function buttonIds(mode, existingIds, block, onMonitor) {
+  block = block || 0
+  var ids = [], guests = []
+  for (var slot = 1; slot <= 5; slot++) ids.push(idFor(mode, slot, block))
   for (var i = 0; i < existingIds.length; i++) {
     var id = existingIds[i]
-    if (modeOf(id) === mode && ids.indexOf(id) < 0) ids.push(id)
+    if (modeOf(id) === mode && blockOf(id) === block && ids.indexOf(id) < 0) ids.push(id)
   }
-  return ids.sort(function(a, b) { return a - b })
+  var here = onMonitor || []
+  for (var j = 0; j < here.length; j++) {
+    var g = here[j]
+    if (modeOf(g) === mode && blockOf(g) !== block && guests.indexOf(g) < 0) guests.push(g)
+  }
+  var byNumber = function(a, b) { return a - b }
+  return ids.sort(byNumber).concat(guests.sort(byNumber))
+}
+
+// Omarchy's ~/.local/state/omarchy/monitor-workspaces: "block<TAB>connector<TAB>identity" per
+// monitor ever seen, the connector empty while it is unplugged. Returns connector -> block.
+function parseBlocks(text) {
+  var blocks = {}
+  var lines = String(text || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var fields = lines[i].split("\t")
+    if (fields.length >= 3 && fields[1] !== "" && /^\d+$/.test(fields[0])) blocks[fields[1]] = parseInt(fields[0], 10)
+  }
+  return blocks
 }
 
 function labelFor(id) {

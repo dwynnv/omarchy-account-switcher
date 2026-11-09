@@ -14,24 +14,29 @@ end
 local FIXTURE = read(here .. "/../fixtures/apps")
 L.configure(L.parse_apps(FIXTURE))
 
+-- Every monitor owns a block of ten per mode, numbered like Omarchy's per-monitor
+-- workspaces: Work on block b is b*10+1..b*10+10, Personal is 100 above it.
 t.test("mode_of ranges", function()
-  t.eq(L.mode_of(1), "work"); t.eq(L.mode_of(10), "work")
-  t.eq(L.mode_of(11), "personal"); t.eq(L.mode_of(20), "personal")
-  t.eq(L.mode_of(0), nil); t.eq(L.mode_of(21), nil); t.eq(L.mode_of(-98), nil)
+  t.eq(L.mode_of(1), "work"); t.eq(L.mode_of(10), "work"); t.eq(L.mode_of(11), "work"); t.eq(L.mode_of(100), "work")
+  t.eq(L.mode_of(101), "personal"); t.eq(L.mode_of(120), "personal"); t.eq(L.mode_of(200), "personal")
+  t.eq(L.mode_of(0), nil); t.eq(L.mode_of(201), nil); t.eq(L.mode_of(-98), nil); t.eq(L.mode_of("3"), nil)
 end)
-t.test("slot and id", function()
-  t.eq(L.slot_of(3), 3); t.eq(L.slot_of(13), 3); t.eq(L.slot_of(10), 10); t.eq(L.slot_of(20), 10)
-  t.eq(L.id_for("personal", 3), 13); t.eq(L.id_for("work", 10), 10)
+t.test("slot, block and id", function()
+  t.eq(L.slot_of(3), 3); t.eq(L.slot_of(13), 3); t.eq(L.slot_of(10), 10); t.eq(L.slot_of(120), 10)
+  t.eq(L.block_of(3), 0); t.eq(L.block_of(13), 1); t.eq(L.block_of(20), 1); t.eq(L.block_of(103), 0); t.eq(L.block_of(121), 2)
+  t.eq(L.id_for("work", 3), 3); t.eq(L.id_for("personal", 3), 103)
+  t.eq(L.id_for("work", 3, 2), 23); t.eq(L.id_for("personal", 10, 1), 120)
   t.eq(L.other("work"), "personal"); t.eq(L.other("personal"), "work")
 end)
-t.test("send_target keeps the number", function()
-  t.eq(L.send_target(3), 13); t.eq(L.send_target(13), 3); t.eq(L.send_target(25), nil)
+t.test("send_target keeps the monitor and the number", function()
+  t.eq(L.send_target(3), 103); t.eq(L.send_target(103), 3)
+  t.eq(L.send_target(24), 124); t.eq(L.send_target(124), 24); t.eq(L.send_target(250), nil)
 end)
 t.test("next_in_mode wraps inside the mode", function()
-  local ids = { 1, 3, 12, 14, 7 }
+  local ids = { 1, 3, 102, 104, 7 }
   t.eq(L.next_in_mode(ids, 3, "work", 1), 7); t.eq(L.next_in_mode(ids, 7, "work", 1), 1)
   t.eq(L.next_in_mode(ids, 1, "work", -1), 7)
-  t.eq(L.next_in_mode(ids, 12, "personal", 1), 14); t.eq(L.next_in_mode(ids, 14, "personal", 1), 12)
+  t.eq(L.next_in_mode(ids, 102, "personal", 1), 104); t.eq(L.next_in_mode(ids, 104, "personal", 1), 102)
   t.eq(L.next_in_mode({ 5 }, 5, "work", 1), 5)
   t.eq(L.next_in_mode({ 2, 4 }, 9, "work", 1), 2); t.eq(L.next_in_mode({ 2, 4 }, 9, "work", -1), 4)
   t.eq(L.next_in_mode({ 2 }, 2, "personal", 1), nil)
@@ -41,50 +46,89 @@ t.test("status line", function()
   t.eq(L.status_line("work", true, 0), "mode=work peek=1 alerts=0 share=0")
 end)
 t.test("memory round trip", function()
-  local m = { work = { ["Laptop Panel 0x0001"] = 3 }, personal = { ["Desk Monitor 4K 0x0002"] = 14 } }
+  local m = { work = { ["Laptop Panel 0x0001"] = 3 }, personal = { ["Desk Monitor 4K 0x0002"] = 114 } }
   local back = L.parse_memory(L.format_memory(m))
   t.eq(back.work["Laptop Panel 0x0001"], 3)
-  t.eq(back.personal["Desk Monitor 4K 0x0002"], 14)
+  t.eq(back.personal["Desk Monitor 4K 0x0002"], 114)
 end)
 t.test("memory ignores bad lines and wrong-mode ids", function()
-  local m = L.parse_memory("garbage\nwork\tX\tnope\npersonal\tY\t5\npersonal\tZ\t15\n")
-  t.eq(m.work, {}); t.eq(m.personal, { Z = 15 })
+  local m = L.parse_memory("garbage\nwork\tX\tnope\npersonal\tY\t5\npersonal\tW\t15\npersonal\tZ\t115\n")
+  t.eq(m.work, {}); t.eq(m.personal, { Z = 115 })
 end)
 
 local E = function() return { work = {}, personal = {} } end
-t.test("first switch maps each monitor to the same number", function()
-  local mons = { { name = "DP-1", desc = "A", active = 2, focused = false }, { name = "eDP-1", desc = "B", active = 3, focused = true } }
-  t.eq(L.plan_switch(mons, E(), "personal"), { { name = "DP-1", workspace = 12 }, { name = "eDP-1", workspace = 13 } })
+-- The laptop on block 0, a desk monitor on block 1.
+t.test("first switch maps each monitor to the same number on its own block", function()
+  local mons = { { name = "DP-1", desc = "A", block = 1, active = 12, focused = false }, { name = "eDP-1", desc = "B", block = 0, active = 3, focused = true } }
+  t.eq(L.plan_switch(mons, E(), "personal"), { { name = "DP-1", workspace = 112 }, { name = "eDP-1", workspace = 103 } })
+  t.eq(L.plan_switch({ { name = "DP-1", desc = "A", block = 1, active = 112, focused = true } }, E(), "work"),
+    { { name = "DP-1", workspace = 12 } })
 end)
 t.test("memory wins over the same number", function()
-  local mons = { { name = "eDP-1", desc = "B", active = 3, focused = true } }
-  t.eq(L.plan_switch(mons, { work = {}, personal = { B = 15 } }, "personal"), { { name = "eDP-1", workspace = 15 } })
+  local mons = { { name = "eDP-1", desc = "B", block = 0, active = 3, focused = true } }
+  t.eq(L.plan_switch(mons, { work = {}, personal = { B = 105 } }, "personal"), { { name = "eDP-1", workspace = 105 } })
 end)
 t.test("the focused monitor goes last", function()
-  local mons = { { name = "eDP-1", desc = "B", active = 3, focused = true }, { name = "DP-1", desc = "A", active = 2, focused = false } }
-  t.eq(L.plan_switch(mons, E(), "personal"), { { name = "DP-1", workspace = 12 }, { name = "eDP-1", workspace = 13 } })
+  local mons = { { name = "eDP-1", desc = "B", block = 0, active = 3, focused = true }, { name = "DP-1", desc = "A", block = 1, active = 12, focused = false } }
+  t.eq(L.plan_switch(mons, E(), "personal"), { { name = "DP-1", workspace = 112 }, { name = "eDP-1", workspace = 103 } })
 end)
-t.test("two monitors never get the same workspace", function()
-  local mons = { { name = "DP-1", desc = "A", active = 2, focused = false }, { name = "eDP-1", desc = "B", active = 3, focused = true } }
-  t.eq(L.plan_switch(mons, { work = {}, personal = { A = 13, B = 13 } }, "personal"),
-    { { name = "DP-1", workspace = 13 }, { name = "eDP-1", workspace = 11 } })
+t.test("each monitor only gets a workspace of its own block", function()
+  local mons = { { name = "DP-1", desc = "A", block = 1, active = 12, focused = false }, { name = "eDP-1", desc = "B", block = 0, active = 3, focused = true } }
+  -- Memory and the shown workspace from another monitor's block are both ignored.
+  t.eq(L.plan_switch(mons, { work = {}, personal = { A = 103, B = 103 } }, "personal"),
+    { { name = "DP-1", workspace = 112 }, { name = "eDP-1", workspace = 103 } })
+  t.eq(L.plan_switch({ { name = "DP-1", desc = "A", block = 1, active = 4, focused = true } }, E(), "work"),
+    { { name = "DP-1", workspace = 14 } })
 end)
 t.test("a monitor already in the target mode keeps its workspace", function()
-  local mons = { { name = "DP-1", desc = "A", active = 14, focused = false }, { name = "eDP-1", desc = "B", active = 3, focused = true } }
-  t.eq(L.plan_switch(mons, { work = {}, personal = { B = 14 } }, "personal"),
-    { { name = "DP-1", workspace = 14 }, { name = "eDP-1", workspace = 13 } })
+  local mons = { { name = "DP-1", desc = "A", block = 1, active = 114, focused = false }, { name = "eDP-1", desc = "B", block = 0, active = 3, focused = true } }
+  t.eq(L.plan_switch(mons, { work = {}, personal = { A = 112 } }, "personal"),
+    { { name = "DP-1", workspace = 114 }, { name = "eDP-1", workspace = 103 } })
 end)
-t.test("a monitor outside both modes gets the lowest free id", function()
-  local mons = { { name = "HDMI-A-1", desc = "C", active = 0, focused = true } }
-  t.eq(L.plan_switch(mons, E(), "personal"), { { name = "HDMI-A-1", workspace = 11 } })
+t.test("a monitor outside both modes gets its block's first workspace", function()
+  t.eq(L.plan_switch({ { name = "HDMI-A-1", desc = "C", block = 2, active = 0, focused = true } }, E(), "personal"),
+    { { name = "HDMI-A-1", workspace = 121 } })
+  t.eq(L.plan_switch({ { name = "HDMI-A-1", desc = "C", active = 0, focused = true } }, E(), "personal"),
+    { { name = "HDMI-A-1", workspace = 101 } })
 end)
 t.test("memory pointing into the wrong mode is ignored", function()
-  local mons = { { name = "eDP-1", desc = "B", active = 3, focused = true } }
-  t.eq(L.plan_switch(mons, { work = {}, personal = { B = 4 } }, "personal"), { { name = "eDP-1", workspace = 13 } })
+  local mons = { { name = "eDP-1", desc = "B", block = 0, active = 3, focused = true } }
+  t.eq(L.plan_switch(mons, { work = {}, personal = { B = 4 } }, "personal"), { { name = "eDP-1", workspace = 103 } })
 end)
 t.test("remember records each monitor under its mode", function()
-  local mem = L.remember(E(), { { name = "eDP-1", desc = "B", active = 13, focused = true }, { name = "DP-1", desc = "A", active = 0, focused = false } })
-  t.eq(mem.personal.B, 13); t.eq(mem.work, {})
+  local mem = L.remember(E(), { { name = "eDP-1", desc = "B", active = 113, focused = true }, { name = "DP-1", desc = "A", active = 0, focused = false } })
+  t.eq(mem.personal.B, 113); t.eq(mem.work, {})
+end)
+t.test("renumbering from the 1-10/11-20 desk puts each workspace on its monitor's block", function()
+  -- Before: Work 1-10 and Personal 11-20 shared by every monitor. The laptop (block 0) has
+  -- Work 1 and Personal 12, HDMI (block 1) Work 4, 5 and Personal 11, DP (block 2) Work 2, 3
+  -- and Personal 13. Personal moves first, so no Work id lands on one still in use.
+  local ws = {
+    { id = 1, block = 0 }, { id = 12, block = 0 },
+    { id = 4, block = 1 }, { id = 5, block = 1 }, { id = 11, block = 1 },
+    { id = 2, block = 2 }, { id = 3, block = 2 }, { id = 13, block = 2 },
+  }
+  t.eq(L.plan_renumber(ws), {
+    { from = 12, to = 102 }, { from = 11, to = 111 }, { from = 13, to = 123 },
+    { from = 4, to = 14 }, { from = 5, to = 15 }, { from = 2, to = 22 }, { from = 3, to = 23 },
+  })
+end)
+t.test("renumbering keeps 11-20 in Work when its windows are Work's", function()
+  -- Omarchy 4.5 had already moved HDMI's Work 4 and 5 to its own 14 and 15.
+  t.eq(L.plan_renumber({ { id = 14, block = 1, mode = "work" }, { id = 15, block = 1 }, { id = 16, block = 2, mode = "work" } }),
+    { { from = 15, to = 115 }, { from = 16, to = 26 } })
+end)
+t.test("renumbering frees an old Personal id before Work needs it", function()
+  -- Work 3 on block 1 wants 13, which is old Personal 13 until that moves to 113.
+  t.eq(L.plan_renumber({ { id = 3, block = 1 }, { id = 13, block = 1 } }),
+    { { from = 13, to = 113 }, { from = 3, to = 13 } })
+end)
+t.test("renumbering keeps ids already right and takes the next free slot when one is taken", function()
+  t.eq(L.plan_renumber({ { id = 1, block = 0 }, { id = 102, block = 0 }, { id = 25, block = 2 } }), {})
+  -- Work 4 and Work 24 both on block 2: 24 stays, 4 takes block 2's first free slot.
+  t.eq(L.plan_renumber({ { id = 24, block = 2 }, { id = 4, block = 2 } }), { { from = 4, to = 21 } })
+  -- An old Work id on block 0 and ids past 200 are left alone.
+  t.eq(L.plan_renumber({ { id = 7, block = 0 }, { id = 250, block = 1 } }), {})
 end)
 
 t.test("identity by executable first", function()
@@ -134,14 +178,17 @@ t.test("home-mode apps", function()
   t.eq(L.is_home_app("steam"), true); t.eq(L.is_home_app("steam_app_480"), true)
   t.eq(L.is_home_app("google-chrome"), false); t.eq(L.is_home_app("chromium"), false); t.eq(L.is_home_app("obsidian"), false)
 end)
-t.test("plan_fix moves only the monitors outside the mode, focused one last", function()
+t.test("plan_fix moves only the monitors outside the mode or their block, focused one last", function()
   local mons = {
-    { name = "A", desc = "a", active = 12, focused = false },
-    { name = "B", desc = "b", active = 3, focused = true },
-    { name = "C", desc = "c", active = 1, focused = false },
+    { name = "A", desc = "a", block = 1, active = 112, focused = false },
+    { name = "B", desc = "b", block = 0, active = 3, focused = true },
+    { name = "C", desc = "c", block = 2, active = 21, focused = false },
   }
-  t.eq(L.plan_fix(mons, { work = {}, personal = { b = 13 } }, "personal"), { { name = "C", workspace = 11 }, { name = "B", workspace = 13 } })
-  t.eq(L.plan_fix({ { name = "A", desc = "a", active = 12, focused = true } }, { work = {}, personal = {} }, "personal"), {})
+  t.eq(L.plan_fix(mons, { work = {}, personal = { b = 104 } }, "personal"), { { name = "C", workspace = 121 }, { name = "B", workspace = 104 } })
+  t.eq(L.plan_fix({ { name = "A", desc = "a", block = 1, active = 112, focused = true } }, E(), "personal"), {})
+  -- Personal, but another monitor's: back to its own block.
+  t.eq(L.plan_fix({ { name = "A", desc = "a", block = 1, active = 102, focused = true } }, E(), "personal"),
+    { { name = "A", workspace = 112 } })
 end)
 t.test("each scratchpad belongs to its mode; other special workspaces to none", function()
   t.eq(L.special_mode("special:" .. L.SCRATCHPAD.work), "work")
@@ -163,7 +210,7 @@ t.test("status line carries the share state", function()
   t.eq(L.status_line("personal", true, 2), "mode=personal peek=1 alerts=2 share=0")
 end)
 t.test("clock-in places read and write as class and Work workspace", function()
-  local places = L.parse_places("slack\t5\ngoogle-chrome\t2\nchromium\t13\n\t4\ncom.microsoft.vscode\t4\nbroken\n")
+  local places = L.parse_places("slack\t5\ngoogle-chrome\t2\nchromium\t113\n\t4\ncom.microsoft.vscode\t4\nbroken\n")
   t.eq(places, { slack = 5, ["google-chrome"] = 2, ["com.microsoft.vscode"] = 4 })
   t.eq(L.format_places(places), "com.microsoft.vscode\t4\ngoogle-chrome\t2\nslack\t5\n")
   t.eq(L.format_places({}), "")

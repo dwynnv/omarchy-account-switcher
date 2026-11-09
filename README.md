@@ -2,14 +2,17 @@
 
 Work and Personal on one machine, each a whole desk: its own workspaces, accounts, browser, apps, folders and look. One key switches every monitor at once.
 
-**Work** is workspaces 1–10 and **Personal** is 11–20. Both stay open; each monitor remembers its last workspace in each mode.
+Every monitor has its own workspaces 1–10 in **Work** and another 1–10 in **Personal**, on top of Omarchy 4.5's per-monitor workspaces. Both modes stay open; each monitor remembers its last workspace in each mode.
+
+Behind the scenes Work keeps Omarchy's numbers (the laptop 1–10, the next monitor 11–20, and so on) and Personal uses the same block 100 higher (101–110, 111–120, …). On an Omarchy without per-monitor workspaces, every monitor shares Work 1–10 and Personal 101–110.
 
 | Key | Does |
 |---|---|
 | SUPER+CTRL+` (tap) | Switch mode |
 | SUPER+CTRL+` (hold) | Peek at the other mode; let go to come back |
 | SUPER+CTRL+SHIFT+` | Send the focused window to the same number in the other mode |
-| SUPER+1…0, SUPER+SHIFT(+ALT)+1…0, SUPER+TAB family, SUPER+wheel, SUPER+S | As before, inside the current mode |
+| SUPER+1…0, SUPER+SHIFT(+ALT)+1…0, SUPER+TAB family, SUPER+wheel, SUPER+S | As before, on the focused monitor, inside the current mode |
+| SUPER+SHIFT+ALT+arrow | Move the workspace to that monitor; it joins that monitor's workspaces in the same mode |
 | SUPER+RETURN, SUPER+SHIFT+F, SUPER+ALT+SHIFT+F, SUPER+SHIFT+CTRL+A | Terminal, file manager, agent — of the current mode |
 | SUPER+SHIFT+B (and RETURN), SUPER+SHIFT+ALT+B | The current mode's browser |
 | Omarchy's web-app keys | In the mode the config gives that web app, else the current one |
@@ -20,7 +23,7 @@ SUPER+` and SUPER+SHIFT+` are left to Omarchy's Quake console (Omarchy 4.5 and l
 
 ## What you get
 
-- **A badge** on the bar in place of Omarchy's workspace buttons: `◆ WORK` in the theme accent or `● PERSONAL` in amber (or your colour), the mode's workspaces, a count of what waits for you, and `◉` while you share your screen. Personal gets its own border colour and wallpaper. Windows keep their mode's border colour wherever they are.
+- **A badge** on the bar in place of Omarchy's workspace buttons: `◆ WORK` in the theme accent or `● PERSONAL` in amber (or your colour), this monitor's workspaces of the mode, a count of what waits for you, and `◉` while you share your screen. Personal gets its own border colour and wallpaper. Windows keep their mode's border colour wherever they are.
 - **Each mode's accounts.** Terminals, agents and VS Code opened in a mode keep that mode's git identity, GitHub (`gh`) account, shell history, `z` jumps and tmux/herdr servers, even after you switch. Personal sees empty AWS files. A commit made under the wrong address for the repo's owner is refused (one through on purpose: `git -c hook.account-switcher-guard.enabled=false commit …`).
 - **A browser per mode** (two different browsers, so their windows and notifications can be told apart). Links open in the browser of the mode of whatever opened them, switching you there when you opened them yourself; a link from a program in the background opens without pulling the desk across.
 - **Home apps**: apps that live in one mode (a work chat app, a game launcher, …) take you to their mode when you open them, and their windows never open in the other one.
@@ -240,7 +243,7 @@ From the bar side: `omarchy-shell account-switcher status|time|switchMode|reappl
 
 ## Uninstall
 
-1. Move what you want to keep from workspaces 11–20 (and Personal's scratchpad, SUPER+S) to 1–10.
+1. Move what you want to keep from Personal (its workspaces and its scratchpad, SUPER+S) to Work. Personal's workspaces, numbered 101 and up, stay where they are until you close their windows.
 2. `account-switcher uninstall` takes back everything install did, and adds what you typed in each mode to `~/.bash_history`. `--purge` also removes the config (with your clock hooks), state, data and the per-mode git files (a mode's global git file you've put settings in stays, and uninstall says where); `z` jumps learned since install go with the data. `~/.config/Code-Personal` (Personal's VS Code) stays either way.
 3. `omarchy refresh applications` (Omarchy's own launcher entries), then `omarchy restart shell`.
 4. `omarchy plugin remove account-switcher`.
@@ -258,7 +261,7 @@ Lua 5.5 (Hyprland's Lua) runs the desk against a small model of Hyprland; the sh
 ## Limits
 
 - Per-mode terminals and agents need Ghostty.
-- The workspace ranges are fixed: Work 1–10, Personal 11–20.
+- Each monitor gets ten workspaces per mode. Omarchy's own renumbering stands down while the switcher runs (it would turn Personal into Work), so a monitor's workspaces that an unplug left on another one keep their numbers there, listed after that monitor's own, until it comes back.
 - Nothing is built in: every browser and app is described in the config.
 
 ## License

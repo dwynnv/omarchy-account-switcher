@@ -23,8 +23,8 @@ if [[ -n $list ]]; then
   declare -A mode_of=()
   while IFS=' ' read -r address id name tags; do
     m=
-    if ((id >= 1 && id <= 10)); then m=work
-    elif ((id >= 11 && id <= 20)); then m=personal
+    if ((id >= 1 && id <= 100)); then m=work
+    elif ((id >= 101 && id <= 200)); then m=personal
     elif [[ $name == special:scratchpad ]]; then m=work
     elif [[ $name == special:scratchpad-personal ]]; then m=personal
     elif [[ ,$tags, == *,dwm-from-work,* ]]; then m=work

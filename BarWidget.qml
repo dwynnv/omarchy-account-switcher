@@ -1,14 +1,15 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Io
 import Quickshell.Hyprland
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "Model.js" as Model
 
-// The mode badge, then the current mode's workspaces labelled 1-0. Replaces omarchy.workspaces
-// and keeps its sizes; one instance per monitor.
+// The mode badge, then this monitor's workspaces of the current mode labelled 1-0. Replaces
+// omarchy.workspaces and keeps its sizes; one instance per monitor, each showing its own block.
 BarWidget {
   id: root
   moduleName: "account-switcher"
@@ -27,6 +28,22 @@ BarWidget {
   readonly property var screenMonitor: root.QsWindow.window && root.QsWindow.window.screen
     ? Hyprland.monitorFor(root.QsWindow.window.screen) : null
   readonly property int activeId: screenMonitor && screenMonitor.activeWorkspace ? screenMonitor.activeWorkspace.id : focusedId
+  readonly property string monitorName: screenMonitor ? screenMonitor.name : ""
+
+  // Connector -> block, from the file Omarchy keeps them in (default/hypr/monitor-workspaces.lua).
+  property var blocks: ({})
+  FileView {
+    path: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/omarchy/monitor-workspaces"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.blocks = Model.parseBlocks(text())
+    onLoadFailed: root.blocks = ({})
+  }
+  // Until Omarchy has written the file (or on an Omarchy without it), the block of the
+  // workspace this monitor shows.
+  readonly property int block: root.blocks[root.monitorName] !== undefined
+    ? root.blocks[root.monitorName] : (Model.modeOf(root.activeId) ? Model.blockOf(root.activeId) : 0)
   readonly property real trailingGap: root.vertical ? 0 : Style.spaceReal(1.5)
 
   function workspaceById(id) {
@@ -41,6 +58,16 @@ BarWidget {
     var ids = []
     var values = Hyprland.workspaces.values
     for (var i = 0; i < values.length; i++) ids.push(values[i].id)
+    return ids
+  }
+
+  // The workspaces on this monitor, other monitors' included (an unplug leaves them here).
+  function idsOnMonitor() {
+    var ids = []
+    var values = Hyprland.workspaces.values
+    for (var i = 0; i < values.length; i++) {
+      if (values[i].monitor && values[i].monitor.name === root.monitorName) ids.push(values[i].id)
+    }
     return ids
   }
 
@@ -84,7 +111,7 @@ BarWidget {
 
   GridLayout {
     id: grid
-    readonly property var ids: Model.buttonIds(root.shownMode, root.existingIds())
+    readonly property var ids: Model.buttonIds(root.shownMode, root.existingIds(), root.block, root.idsOnMonitor())
 
     anchors.fill: parent
     anchors.rightMargin: root.trailingGap

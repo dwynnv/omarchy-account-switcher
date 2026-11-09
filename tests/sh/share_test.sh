@@ -14,10 +14,10 @@ fresh() {
   : >"$ACCOUNT_SWITCHER_RUN_LOG"
   cat >"$TMP/fakes/hyprctl-clients.out" <<'JSON'
 [{"address":"0x10","workspace":{"id":2,"name":"2"},"tags":[]},
- {"address":"0x20","workspace":{"id":13,"name":"13"},"tags":[]},
+ {"address":"0x20","workspace":{"id":113,"name":"113"},"tags":[]},
  {"address":"0x30","workspace":{"id":-98,"name":"special:scratchpad"},"tags":["dwm-from-work"]},
  {"address":"0x40","workspace":{"id":-97,"name":"special:minimized"},"tags":["dwm-from-personal"]},
- {"address":"0x5a5a00c0ffee","workspace":{"id":3,"name":"3"},"tags":[]}]
+ {"address":"0x5a5a00c0ffee","workspace":{"id":23,"name":"23"},"tags":[]}]
 JSON
 }
 desk() { echo "$1" >"$HOME/.local/state/account-switcher/mode"; }

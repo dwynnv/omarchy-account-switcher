@@ -2,7 +2,11 @@
 -- No hl and no io here, so plain lua 5.5 can test every function.
 local L = {}
 
-L.OFFSET = { work = 0, personal = 10 }
+-- Every monitor has its own workspaces 1-10 in each mode. Omarchy 4.5 gives each monitor
+-- a block of ten (the laptop 1-10, the next monitor 11-20, ...); Work uses those ids as they
+-- are, and Personal the same block 100 higher (101-110, 111-120, ...).
+L.SLOTS = 10
+L.OFFSET = { work = 0, personal = 100 }
 L.PERSONAL_ACTIVE = { colors = { "rgba(ffb000ee)", "rgba(ff6a00ee)" }, angle = 45 }
 L.MODE_SWITCH_STYLE = "slidevert"
 L.HOLD_MS = 300
@@ -16,8 +20,8 @@ L.SCRATCHPAD = { work = "scratchpad", personal = "scratchpad-personal" }
 
 function L.mode_of(id)
   if type(id) ~= "number" then return nil end
-  if id >= 1 and id <= 10 then return "work" end
-  if id >= 11 and id <= 20 then return "personal" end
+  if id >= 1 and id <= 100 then return "work" end
+  if id >= 101 and id <= 200 then return "personal" end
   return nil
 end
 
@@ -26,17 +30,24 @@ function L.other(mode)
 end
 
 function L.slot_of(id)
-  return (id - 1) % 10 + 1
+  return (id - 1) % L.SLOTS + 1
 end
 
-function L.id_for(mode, slot)
-  return L.OFFSET[mode] + slot
+-- The monitor block an id belongs to, in either mode.
+function L.block_of(id)
+  return ((id - 1) % 100) // L.SLOTS
 end
 
+-- Slot 1-10 of a mode on a monitor's block (block 0, the laptop's, when not given).
+function L.id_for(mode, slot, block)
+  return L.OFFSET[mode] + (block or 0) * L.SLOTS + slot
+end
+
+-- The same number on the same monitor in the other mode.
 function L.send_target(id)
   local mode = L.mode_of(id)
   if not mode then return nil end
-  return L.id_for(L.other(mode), L.slot_of(id))
+  return L.id_for(L.other(mode), L.slot_of(id), L.block_of(id))
 end
 
 -- Next or previous existing workspace of the mode, wrapping around.
@@ -116,22 +127,24 @@ function L.format_places(places)
 end
 
 -- The workspace each monitor shows after switching to `target`, focused monitor last.
+-- Each monitor (its `block`, 0 when not given) only gets a workspace of its own block.
 -- Claims run in passes over every monitor: a workspace already in the target mode,
--- then memory, then the same number, then the lowest free id. No id is used twice.
+-- then memory, then the same number, then the lowest free slot. No id is used twice.
 function L.plan_switch(monitors, memory, target)
   local claimed, pick = {}, {}
   local function claim(i, id)
     if pick[i] or not id or claimed[id] or L.mode_of(id) ~= target then return end
+    if L.block_of(id) ~= (monitors[i].block or 0) then return end
     claimed[id] = true
     pick[i] = id
   end
   for i, m in ipairs(monitors) do claim(i, m.active) end
   for i, m in ipairs(monitors) do claim(i, (memory[target] or {})[m.desc]) end
   for i, m in ipairs(monitors) do
-    if L.mode_of(m.active) then claim(i, L.id_for(target, L.slot_of(m.active))) end
+    if L.mode_of(m.active) then claim(i, L.id_for(target, L.slot_of(m.active), m.block)) end
   end
-  for i in ipairs(monitors) do
-    for slot = 1, 10 do claim(i, L.id_for(target, slot)) end
+  for i, m in ipairs(monitors) do
+    for slot = 1, L.SLOTS do claim(i, L.id_for(target, slot, m.block)) end
   end
   local steps, focused = {}, nil
   for i, m in ipairs(monitors) do
@@ -142,16 +155,56 @@ function L.plan_switch(monitors, memory, target)
   return steps
 end
 
--- The steps that put every monitor not showing `mode` back into it, focused monitor last.
--- They are plan_switch's picks, so no workspace is used twice.
+-- The steps that put every monitor not showing `mode` on its own block back into it,
+-- focused monitor last. They are plan_switch's picks, so no workspace is used twice.
 function L.plan_fix(monitors, memory, mode)
   local outside = {}
   for _, m in ipairs(monitors) do
-    if L.mode_of(m.active) ~= mode then outside[m.name] = true end
+    if L.mode_of(m.active) ~= mode or L.block_of(m.active) ~= (m.block or 0) then outside[m.name] = true end
   end
   local steps = {}
   for _, step in ipairs(L.plan_switch(monitors, memory, mode)) do
     if outside[step.name] then steps[#steps + 1] = step end
+  end
+  return steps
+end
+
+-- Once, from the desk before 1.4 (Work 1-10 and Personal 11-20 on every monitor): the
+-- renumbering that puts each workspace on the block of the monitor it is on, keeping its mode
+-- and its number. `workspaces` are { id, block, mode } for the workspaces that hold windows;
+-- `mode` = "work" says an 11-20 holds only Work's windows (Omarchy 4.5 had already put a
+-- monitor's Work there), else 11-20 was Personal. Old Personal moves first, so no Work id is
+-- taken while a Personal one still uses it; one whose number is taken gets its block's first
+-- free slot. Returns { from, to } steps in order.
+-- Slot `slot` of a mode on a block when no workspace in `used` (id -> true) has it, else the
+-- block's first free slot; nil when all ten are taken.
+function L.free_id(mode, slot, block, used)
+  local want = L.id_for(mode, slot, block)
+  if not used[want] then return want end
+  for s = 1, L.SLOTS do
+    local id = L.id_for(mode, s, block)
+    if not used[id] then return id end
+  end
+  return nil
+end
+
+function L.plan_renumber(workspaces)
+  local used = {}
+  for _, w in ipairs(workspaces) do used[w.id] = true end
+  local steps = {}
+  local function place(w, mode)
+    if L.id_for(mode, L.slot_of(w.id), w.block) == w.id then return end
+    local want = L.free_id(mode, L.slot_of(w.id), w.block, used)
+    if not want then return end
+    used[w.id], used[want] = nil, true
+    steps[#steps + 1] = { from = w.id, to = want }
+  end
+  local function old_personal(w) return w.id >= 11 and w.id <= 20 and w.mode ~= "work" end
+  for _, w in ipairs(workspaces) do
+    if old_personal(w) then place(w, "personal") end
+  end
+  for _, w in ipairs(workspaces) do
+    if not old_personal(w) and L.mode_of(w.id) == "work" and L.block_of(w.id) ~= w.block then place(w, "work") end
   end
   return steps
 end

@@ -41,31 +41,59 @@ local function dsp_move(args) return (dsp.move or hl.dsp.window.move)(args) end
 
 function D.current() return last end
 
+-- Connector -> block, from Omarchy 4.5's per-monitor workspaces (default/hypr/monitor-workspaces.lua),
+-- which gives each physical monitor the same block every time it comes back and writes them to
+-- the file its bar reads. Without it (an older Omarchy) every monitor is on block 0.
+function D.blocks()
+  local out = {}
+  local ow = type(o) == "table" and type(o.workspaces) == "table" and o.workspaces.workspace_id
+  if type(ow) ~= "function" then return out end
+  for _, m in ipairs(hl.get_monitors()) do
+    local ok, id = pcall(ow, m, 1)
+    if ok and type(id) == "number" and id >= 1 then out[m.name] = logic.block_of(id) end
+  end
+  return out
+end
+
 function D.monitors()
-  local list = {}
+  local list, blocks = {}, D.blocks()
   for _, m in ipairs(hl.get_monitors()) do
     local ws = m.active_workspace
-    list[#list + 1] = { name = m.name, desc = m.description, active = ws and ws.id or 0, focused = m.focused == true }
+    list[#list + 1] = {
+      name = m.name, desc = m.description, block = blocks[m.name] or 0,
+      active = ws and ws.id or 0, focused = m.focused == true,
+    }
   end
   return list
+end
+
+-- The focused monitor's block.
+local function block_here()
+  local m = hl.get_active_monitor()
+  return m and D.blocks()[m.name] or 0
 end
 
 local function focus_workspace(id)
   hl.dispatch(dsp_focus({ workspace = tostring(id) }))
 end
 
+-- On the focused monitor: one of its own that an unplug left on another monitor comes back
+-- (one showing there swaps, and settle puts that monitor back on its own block).
 function D.focus_slot(n)
-  focus_workspace(logic.id_for(last, n))
+  hl.dispatch(dsp_focus({ workspace = tostring(logic.id_for(last, n, block_here())), on_current_monitor = true }))
 end
 
 function D.move_to_slot(n, follow)
-  hl.dispatch(dsp_move({ workspace = tostring(logic.id_for(last, n)), follow = follow }))
+  hl.dispatch(dsp_move({ workspace = tostring(logic.id_for(last, n, block_here())), follow = follow }))
 end
 
+-- Through the workspaces of the mode on the focused monitor.
 function D.cycle(dir)
+  local mon = hl.get_active_monitor()
   local ids = {}
   for _, ws in ipairs(hl.get_workspaces()) do
-    if ws.id and ws.id > 0 then ids[#ids + 1] = ws.id end
+    local wm = ws.monitor
+    if ws.id and ws.id > 0 and mon and wm and wm.name == mon.name then ids[#ids + 1] = ws.id end
   end
   local active = hl.get_active_workspace()
   local id = logic.next_in_mode(ids, active and active.id, last, dir)
@@ -88,7 +116,34 @@ end
 -- Omarchy's close-all ends on workspace 1; this ends on the current mode's first workspace.
 function D.close_all()
   for _, w in ipairs(hl.get_windows()) do hl.dispatch(hl.dsp.window.close({ window = w })) end
-  focus_workspace(logic.id_for(last, 1))
+  focus_workspace(logic.id_for(last, 1, block_here()))
+end
+
+-- SUPER+SHIFT+ALT+arrow: the active workspace goes to the monitor in that direction and joins
+-- its block in the same mode, under the same number when that is free (Omarchy's own
+-- move_to_monitor would make a Personal workspace Work). Settle puts the monitor it left
+-- back on one of its own.
+function D.move_workspace_to_monitor(dir)
+  local ws = hl.get_active_workspace()
+  local mode = ws and not ws.special and logic.mode_of(ws.id)
+  local target = mode and hl.get_monitor(dir)
+  local from = hl.get_active_monitor()
+  if not target or (from and target.name == from.name) then return end
+  local id = ws.id
+  hl.dispatch(hl.dsp.workspace.move({ monitor = target.name }))
+  local block = D.blocks()[target.name]
+  if block and logic.block_of(id) ~= block then
+    local used = {}
+    for _, w in ipairs(hl.get_workspaces()) do
+      if w.id then used[w.id] = true end
+    end
+    local new = logic.free_id(mode, logic.slot_of(id), block, used)
+    if new then
+      hl.dispatch(hl.dsp.workspace.change_id({ workspace = tostring(id), id = new }))
+      id = new
+    end
+  end
+  focus_workspace(id)
 end
 
 -- One Lua call for every monitor, focused monitor last, so they all animate together.
@@ -344,7 +399,7 @@ function D.place_expected(w)
   if not target then
     local active = hl.get_active_workspace()
     local id = active and active.id
-    target = logic.id_for("work", logic.mode_of(id) and logic.slot_of(id) or 1)
+    target = logic.id_for("work", logic.mode_of(id) and logic.slot_of(id) or 1, block_here())
   end
   local ws = w.workspace
   if not (ws and ws.id == target) then
@@ -428,6 +483,38 @@ end
 -- the saved mode and replaces last session's status.
 function D.restore()
   D.settle()
+end
+
+-- Once, after updating from 1.3 (Work 1-10 and Personal 11-20 shared by every monitor): each
+-- workspace that holds windows gets the number of the same mode and slot on the block of the
+-- monitor it is on. An 11-20 whose windows all have Work's accounts was Omarchy 4.5's own
+-- renumbering of a monitor's Work, not Personal. A new install has nothing to renumber.
+function D.renumber_once()
+  if store.numbering_done() then return end
+  if store.first_run_done() then
+    local blocks, list, accounts = D.blocks(), {}, {}
+    for _, w in ipairs(hl.get_windows()) do
+      local ws = w.workspace
+      if ws and ws.id then
+        local seen = accounts[ws.id] or {}
+        seen[identity_of(w) or "none"] = true
+        accounts[ws.id] = seen
+      end
+    end
+    for _, ws in ipairs(hl.get_workspaces()) do
+      local m = ws.monitor
+      if ws.id and ws.id > 0 and not ws.special and m and (ws.windows or 0) > 0 then
+        local seen = accounts[ws.id] or {}
+        local work = seen.work and not seen.personal and not seen.none
+        list[#list + 1] = { id = ws.id, block = blocks[m.name] or 0, mode = work and "work" or nil }
+      end
+    end
+    table.sort(list, function(a, b) return a.id < b.id end)
+    for _, step in ipairs(logic.plan_renumber(list)) do
+      hl.dispatch(hl.dsp.workspace.change_id({ workspace = tostring(step.from), id = step.to }))
+    end
+  end
+  store.mark_numbering()
 end
 
 -- Once: windows whose accounts are Personal (the config's Personal apps and browser) move from

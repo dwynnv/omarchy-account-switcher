@@ -98,11 +98,11 @@ re_literal() {
   printf '%s\n' "$t"
 }
 
-# The most recently focused window on MODE's workspaces (Work 1-10, Personal 11-20) that
-# passes a jq test, which can use $p (ARG).
+# The most recently focused window on MODE's workspaces (every monitor's Work is 1-100,
+# Personal 101-200) that passes a jq test, which can use $p (ARG).
 mode_window() {
-  local lo=1 hi=10
-  [[ $1 == personal ]] && lo=11 hi=20
+  local lo=1 hi=100
+  [[ $1 == personal ]] && lo=101 hi=200
   dm_run hyprctl clients -j 2>/dev/null | jq -r --argjson lo "$lo" --argjson hi "$hi" --arg p "${3:-}" \
     "[.[] | select(.workspace.id >= \$lo and .workspace.id <= \$hi) | select($2)] | sort_by(.focusHistoryID) | .[0].address // empty" 2>/dev/null
 }

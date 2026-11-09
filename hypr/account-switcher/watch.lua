@@ -47,6 +47,7 @@ function W.register(desk, logic)
   -- Fires at the end of every load, including the first one before any monitor exists.
   hl.on("config.reloaded", function()
     if #hl.get_monitors() > 0 then
+      desk.renumber_once()
       desk.first_run()
       desk.retag_all()
       desk.settle()

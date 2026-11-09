@@ -13,6 +13,7 @@ end
 for _, keys in ipairs({
   "SUPER + TAB", "SUPER + SHIFT + TAB", "SUPER + CTRL + TAB", "SUPER + mouse_down", "SUPER + mouse_up",
   "SUPER + S", "SUPER + ALT + S", "CTRL + ALT + DELETE",
+  "SUPER + SHIFT + ALT + LEFT", "SUPER + SHIFT + ALT + RIGHT", "SUPER + SHIFT + ALT + UP", "SUPER + SHIFT + ALT + DOWN",
 }) do
   K.STOCK[#K.STOCK + 1] = keys
 end
@@ -36,6 +37,9 @@ entry("SUPER + mouse_up", "Scroll active workspace backward", "cycle", -1)
 entry("SUPER + S", "Toggle scratchpad", "scratchpad_toggle")
 entry("SUPER + ALT + S", "Move window to scratchpad", "scratchpad_move")
 entry("CTRL + ALT + DELETE", "Close all windows", "close_all")
+for _, d in ipairs({ { "LEFT", "l" }, { "RIGHT", "r" }, { "UP", "u" }, { "DOWN", "d" } }) do
+  entry("SUPER + SHIFT + ALT + " .. d[1], "Move workspace to " .. d[1]:lower() .. " monitor", "move_workspace_to_monitor", d[2])
+end
 -- SUPER+CTRL+` (keycode 49): tap switches, hold peeks. CTRL because Omarchy 4.5 gives
 -- SUPER+` and SUPER+SHIFT+` to its Quake console (bindings/tiling.lua).
 entry("SUPER + CTRL + code:49", "Switch mode (hold to peek)", "grave_down")
@@ -96,7 +100,7 @@ end
 -- Picking the mode key there can't be a hold, so it switches.
 function K.replay(e)
   local args = {}
-  for i, a in ipairs(e.args) do args[i] = tostring(a) end
+  for i, a in ipairs(e.args) do args[i] = type(a) == "string" and string.format("%q", a) or tostring(a) end
   local method = e.method == "grave_down" and "switch" or e.method
   return "function() account_switcher.desk." .. method .. "(" .. table.concat(args, ", ") .. ") end"
 end

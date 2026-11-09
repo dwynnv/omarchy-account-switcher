@@ -30,6 +30,14 @@ account_switcher.status = desk.status_line
 -- The bar service sends the Personal colour setting here when it changes.
 account_switcher.set_personal_colour = function(colour) return look.set_personal(colour, desk.current()) end
 
+-- Omarchy 4.5 renumbers every workspace onto its monitor's block of ten on each reload and
+-- hotplug, which would turn Personal ones (100 above) into Work. The switcher keeps the blocks
+-- itself (desk.fix_all), so Omarchy's renumbering stands down; its block assignment stays.
+-- Omarchy's handlers call reconcile through this table, so replacing it here is enough.
+if type(o) == "table" and type(o.workspaces) == "table" then
+  o.workspaces.reconcile = function() end
+end
+
 -- New windows open in the mode they were launched from, even after a switch.
 hl.config({ misc = { initial_workspace_tracking = 1 } })
 require("hypr.account-switcher.watch").register(desk, logic)
