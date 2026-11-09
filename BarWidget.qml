@@ -14,8 +14,18 @@ BarWidget {
   id: root
   moduleName: "account-switcher"
 
-  readonly property var service: bar && bar.shell && typeof bar.shell.serviceFor === "function"
-    ? bar.shell.serviceFor("account-switcher") : null
+  // Looked up again rather than bound once: a reload of the plugin (any file saved in its
+  // folder) keeps this widget but destroys the service and makes a new one, and serviceFor()
+  // doesn't tell a binding about it, so the badge and every panel button went dead until
+  // the shell restarted.
+  property var service: null
+  function findService() {
+    var s = bar && bar.shell && typeof bar.shell.serviceFor === "function"
+      ? bar.shell.serviceFor("account-switcher") : null
+    if (s !== root.service) root.service = s || null
+  }
+  Component.onCompleted: findService()
+  Timer { interval: 1000; repeat: true; running: true; onTriggered: root.findService() }
   readonly property int focusedId: Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : 0
   readonly property string mode: service ? service.mode : (Model.modeOf(focusedId) || "work")
   readonly property bool peeking: service ? service.peeking : false
@@ -93,7 +103,10 @@ BarWidget {
   function closeForPopoutSwitch() { if (panelLoader.item) panelLoader.item.closeForPopoutSwitch() }
 
   onServiceChanged: root.injectPanel()
-  onBarChanged: root.injectPanel()
+  onBarChanged: {
+    root.findService()
+    root.injectPanel()
+  }
 
   Loader {
     id: panelLoader

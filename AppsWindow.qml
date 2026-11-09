@@ -35,14 +35,12 @@ Item {
   readonly property color workColor: Commons.Color.accent
   readonly property color personalColor: root.service && root.service.personalColor !== "" ? root.service.personalColor : "#FFB000"
 
-  // Shown again rather than left where it is: a window already open may be on another
-  // workspace or a special one that's hidden (the Quake console), and would stay out of sight.
-  // Hidden and shown in the same tick, Qt never unmaps it, so the showing waits a tick.
+  // Always hidden first, then shown a tick later (in the same tick Qt never unmaps it):
+  // - closed with SUPER+W or its ×, the window reads as hidden but setting it visible again
+  //   does nothing, so Choose apps went dead until the shell restarted; hiding it first works;
+  // - a window already open may be on another workspace or a special one that's hidden (the
+  //   Quake console), and would stay out of sight; this brings it to where you are.
   function show() {
-    if (!window.visible) {
-      window.visible = true
-      return
-    }
     window.visible = false
     Qt.callLater(function () { window.visible = true })
   }
